@@ -51,6 +51,30 @@ export function measureBrightness(video: HTMLVideoElement): number {
 }
 
 /**
+ * Returns average brightness 0..255 from a canvas (for photo uploads).
+ * Same luma formula as video, but reads from canvas instead of video element.
+ */
+export function measureBrightnessFromCanvas(
+  canvas: HTMLCanvasElement | OffscreenCanvas
+): number {
+  const ctx = getOffscreenCtx();
+  if (!ctx) return 128;
+
+  ctx.drawImage(canvas, 0, 0, SAMPLE_W, SAMPLE_H);
+  const imageData = ctx.getImageData(0, 0, SAMPLE_W, SAMPLE_H);
+  const data = imageData.data;
+
+  let totalLuma = 0;
+  const pixelCount = SAMPLE_W * SAMPLE_H;
+  for (let i = 0; i < data.length; i += 4) {
+    totalLuma += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+  }
+
+  ctx.clearRect(0, 0, SAMPLE_W, SAMPLE_H);
+  return totalLuma / pixelCount;
+}
+
+/**
  * Convert brightness 0..255 to a score component 0..20.
  * Ideal range: 60..200. Below 40 or above 230 heavily penalized.
  */

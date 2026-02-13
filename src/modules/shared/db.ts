@@ -5,10 +5,11 @@
  */
 
 const DB_NAME = "musclemap";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 export const SCANS_STORE = "scans";
 export const MEASUREMENTS_STORE = "measurements";
+export const PHOTO_BLOBS_STORE = "photoBlobs";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -41,6 +42,15 @@ export function openDB(): Promise<IDBDatabase> {
           });
           measStore.createIndex("name", "name", { unique: false });
           measStore.createIndex("timestamp", "timestamp", { unique: false });
+        }
+      }
+
+      if (oldVersion < 4) {
+        if (!db.objectStoreNames.contains(PHOTO_BLOBS_STORE)) {
+          db.createObjectStore(PHOTO_BLOBS_STORE, {
+            keyPath: "id",
+            autoIncrement: true,
+          });
         }
       }
     };

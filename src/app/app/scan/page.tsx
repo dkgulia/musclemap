@@ -23,6 +23,7 @@ import { generateMockLandmarks } from "@/modules/scan/services/mockLandmarks";
 import { addScan, listScans } from "@/modules/scan/storage/scanStore";
 import type { Landmark, WorldLandmark, ScoreBreakdown, SymmetryData, ScanRecord } from "@/modules/scan/models/types";
 import ScanInsight from "@/modules/trends/components/ScanInsight";
+import PhotoUploadPanel from "@/modules/scan/components/PhotoUploadPanel";
 
 const POSE_DETECT_INTERVAL = 80; // ~12fps
 const READY_HOLD_MS = 1500;
@@ -47,6 +48,7 @@ function ScanPageInner() {
   const { mode, selectedTemplateId, userHeightCm } = useApp();
   const searchParams = useSearchParams();
   const mockMode = searchParams.get("mock") === "1";
+  const [scanMode, setScanMode] = useState<"live" | "upload">("live");
 
   const cameraRef = useRef<CameraLayerHandle>(null);
   const [modelReady, setModelReady] = useState(false);
@@ -256,15 +258,19 @@ function ScanPageInner() {
     setTip(generateTip(breakdownRef.current));
   }, [selectedTemplateId, mockMode, modelReady, userHeightCm]);
 
-  // Start detection loop
+  // Start detection loop (only in live mode)
   useEffect(() => {
-    if (!modelReady) return;
+    if (!modelReady || scanMode !== "live") {
+      if (poseIntervalRef.current) clearInterval(poseIntervalRef.current);
+      poseIntervalRef.current = null;
+      return;
+    }
     if (poseIntervalRef.current) clearInterval(poseIntervalRef.current);
     poseIntervalRef.current = setInterval(runDetection, POSE_DETECT_INTERVAL);
     return () => {
       if (poseIntervalRef.current) clearInterval(poseIntervalRef.current);
     };
-  }, [modelReady, runDetection]);
+  }, [modelReady, runDetection, scanMode]);
 
   const handleCapture = useCallback(async () => {
     const template = getTemplate(selectedTemplateId);
@@ -368,102 +374,132 @@ function ScanPageInner() {
     <div className="flex flex-col gap-3 pt-1 pb-4">
       <TemplateChips />
 
-      {/* Camera + overlays + inline score */}
-      <div className="px-5">
-        <div className="relative w-full aspect-[3/4] rounded-2xl overflow-hidden border border-border bg-black">
-          <CameraLayer ref={cameraRef} mockMode={mockMode} />
-          <GhostOverlay poseId={selectedTemplateId} bodyVisibility={bodyVis} />
-          <SkeletonCanvas
-            landmarks={landmarks}
-            videoWidth={videoSize.w}
-            videoHeight={videoSize.h}
-            isReady={isReady}
-            symmetryData={symmetryData}
-          />
+      {/* Tab bar: Live Scan / Upload Photo */}
+      <div className="flex gap-1 mx-5 p-1 bg-text/[0.05] rounded-xl">
+        <button
+          onClick={() => setScanMode("live")}
+          className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+            scanMode === "live"
+              ? "bg-accent text-accent-fg"
+              : "text-text2 hover:text-text"
+          }`}
+        >
+          Live Scan
+        </button>
+        <button
+          onClick={() => setScanMode("upload")}
+          className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+            scanMode === "upload"
+              ? "bg-accent text-accent-fg"
+              : "text-text2 hover:text-text"
+          }`}
+        >
+          Upload Photo
+        </button>
+      </div>
 
-          {/* Score overlay — bottom-left glassmorphic pill */}
-          <div className="absolute bottom-3 left-3 flex items-center gap-2 bg-black/50 backdrop-blur-md rounded-xl px-3 py-2">
-            {/* Alignment mini-ring */}
-            <div className="relative w-9 h-9 flex-shrink-0">
-              <svg width="36" height="36" viewBox="0 0 36 36">
-                <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="3" />
-                <circle
-                  cx="18" cy="18" r="15"
-                  fill="none"
-                  stroke={isReady ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.5)"}
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeDasharray={2 * Math.PI * 15}
-                  strokeDashoffset={2 * Math.PI * 15 * (1 - displayAlignment / 100)}
-                  transform="rotate(-90 18 18)"
-                  style={{ transition: "stroke-dashoffset 0.5s ease" }}
-                />
-              </svg>
-              <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-white">
-                {displayAlignment}
-              </span>
-            </div>
-            <div>
-              <p className="text-[11px] font-medium text-white/90">
-                {justLogged ? "Captured!" : isReady ? "Ready!" : displayAlignment >= 45 ? "Almost there..." : "Match the pose"}
-              </p>
-              <p className="text-[9px] text-white/50">
-                {isReady ? "Hold still" : "Align with the ghost"}
-              </p>
+      {scanMode === "live" ? (
+        <>
+          {/* Camera + overlays + inline score */}
+          <div className="px-5">
+            <div className="relative w-full aspect-[3/4] rounded-2xl overflow-hidden border border-border bg-black">
+              <CameraLayer ref={cameraRef} mockMode={mockMode} />
+              <GhostOverlay poseId={selectedTemplateId} bodyVisibility={bodyVis} />
+              <SkeletonCanvas
+                landmarks={landmarks}
+                videoWidth={videoSize.w}
+                videoHeight={videoSize.h}
+                isReady={isReady}
+                symmetryData={symmetryData}
+              />
+
+              {/* Score overlay — bottom-left glassmorphic pill */}
+              <div className="absolute bottom-3 left-3 flex items-center gap-2 bg-black/50 backdrop-blur-md rounded-xl px-3 py-2">
+                {/* Alignment mini-ring */}
+                <div className="relative w-9 h-9 flex-shrink-0">
+                  <svg width="36" height="36" viewBox="0 0 36 36">
+                    <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="3" />
+                    <circle
+                      cx="18" cy="18" r="15"
+                      fill="none"
+                      stroke={isReady ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.5)"}
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeDasharray={2 * Math.PI * 15}
+                      strokeDashoffset={2 * Math.PI * 15 * (1 - displayAlignment / 100)}
+                      transform="rotate(-90 18 18)"
+                      style={{ transition: "stroke-dashoffset 0.5s ease" }}
+                    />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-white">
+                    {displayAlignment}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-white/90">
+                    {justLogged ? "Captured!" : isReady ? "Ready!" : displayAlignment >= 45 ? "Almost there..." : "Match the pose"}
+                  </p>
+                  <p className="text-[9px] text-white/50">
+                    {isReady ? "Hold still" : "Align with the ghost"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Model loading */}
+              {modelLoading && (
+                <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-sm rounded-lg px-3 py-2 flex items-center gap-2">
+                  <div className="w-3 h-3 border border-white/40 border-t-white rounded-full animate-spin" />
+                  <span className="text-[10px] text-white/80">Loading model...</span>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Model loading */}
-          {modelLoading && (
-            <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-sm rounded-lg px-3 py-2 flex items-center gap-2">
-              <div className="w-3 h-3 border border-white/40 border-t-white rounded-full animate-spin" />
-              <span className="text-[10px] text-white/80">Loading model...</span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Tip / toast / rescan / manual capture */}
-      {justLogged && capturedData ? (
-        <ScanInsight
-          poseId={selectedTemplateId}
-          photoDataUrl={capturedData.photoDataUrl}
-          symmetryScore={capturedData.symmetryScore}
-          alignmentScore={capturedData.alignmentScore}
-          previousScan={previousScan}
-        />
-      ) : canRescan ? (
-        <div className="mx-5 flex items-center gap-2">
-          <button
-            onClick={handleRescan}
-            className="flex-1 py-2.5 rounded-xl bg-accent text-accent-fg text-xs font-medium transition-colors cursor-pointer"
-          >
-            Scan Again
-          </button>
-          <p className="text-[10px] text-muted shrink-0">or switch pose above</p>
-        </div>
-      ) : (
-        <>
-          <TipBanner tip={tip} />
-          {bodyVis !== "none" && !justLogged && !canRescan && landmarks && (
-            <div className="mx-5">
+          {/* Tip / toast / rescan / manual capture */}
+          {justLogged && capturedData ? (
+            <ScanInsight
+              poseId={selectedTemplateId}
+              photoDataUrl={capturedData.photoDataUrl}
+              symmetryScore={capturedData.symmetryScore}
+              alignmentScore={capturedData.alignmentScore}
+              previousScan={previousScan}
+            />
+          ) : canRescan ? (
+            <div className="mx-5 flex items-center gap-2">
               <button
-                onClick={handleCapture}
-                className="w-full py-3 rounded-xl bg-accent text-accent-fg text-sm font-medium transition-colors cursor-pointer"
+                onClick={handleRescan}
+                className="flex-1 py-2.5 rounded-xl bg-accent text-accent-fg text-xs font-medium transition-colors cursor-pointer"
               >
-                Capture Now
+                Scan Again
+              </button>
+              <p className="text-[10px] text-muted shrink-0">or switch pose above</p>
+            </div>
+          ) : (
+            <>
+              <TipBanner tip={tip} />
+              {bodyVis !== "none" && !justLogged && !canRescan && landmarks && (
+                <div className="mx-5">
+                  <button
+                    onClick={handleCapture}
+                    className="w-full py-3 rounded-xl bg-accent text-accent-fg text-sm font-medium transition-colors cursor-pointer"
+                  >
+                    Capture Now
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+
+          {mode === "pro" && (
+            <div className="px-5">
+              <button className="w-full py-2.5 rounded-xl bg-surface border border-border text-xs text-muted hover:text-text2 transition-colors cursor-pointer">
+                Export Scan Data
               </button>
             </div>
           )}
         </>
-      )}
-
-      {mode === "pro" && (
-        <div className="px-5">
-          <button className="w-full py-2.5 rounded-xl bg-surface border border-border text-xs text-muted hover:text-text2 transition-colors cursor-pointer">
-            Export Scan Data
-          </button>
-        </div>
+      ) : (
+        <PhotoUploadPanel />
       )}
     </div>
   );

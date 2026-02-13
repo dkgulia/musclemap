@@ -4,7 +4,7 @@
  */
 
 import type { ScanRecord } from "../models/types";
-import { openDB, SCANS_STORE } from "@/modules/shared/db";
+import { openDB, SCANS_STORE, PHOTO_BLOBS_STORE } from "@/modules/shared/db";
 
 function normalizeScanRecord(raw: Record<string, unknown>): ScanRecord {
   const rec = raw as unknown as ScanRecord;
@@ -15,6 +15,18 @@ function normalizeScanRecord(raw: Record<string, unknown>): ScanRecord {
     bodyHeightCm: rec.bodyHeightCm ?? 0,
     symmetryScore: rec.symmetryScore ?? 0,
     photoDataUrl: rec.photoDataUrl ?? "",
+    // Photo scan fields (optional, default to undefined for live scans)
+    isPhotoScan: rec.isPhotoScan,
+    hipBandWidthIndex: rec.hipBandWidthIndex,
+    upperThighWidthIndex: rec.upperThighWidthIndex,
+    midThighWidthIndex: rec.midThighWidthIndex,
+    calfWidthIndex: rec.calfWidthIndex,
+    stanceWidthIndex: rec.stanceWidthIndex,
+    hipTiltDeg: rec.hipTiltDeg,
+    shoulderTiltDeg: rec.shoulderTiltDeg,
+    segmentationQuality: rec.segmentationQuality,
+    consistencyScore: rec.consistencyScore,
+    photoBlobKey: rec.photoBlobKey,
   };
 }
 
@@ -82,4 +94,42 @@ export async function clearAll(): Promise<void> {
 export async function countScans(poseId?: string): Promise<number> {
   const scans = await listScans(poseId, 9999);
   return scans.length;
+}
+
+// ─── Photo Blob Storage ─────────────────────────────────────────
+
+export async function savePhotoBlob(blob: Blob): Promise<number> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PHOTO_BLOBS_STORE, "readwrite");
+    const store = tx.objectStore(PHOTO_BLOBS_STORE);
+    const req = store.add({ blob });
+    req.onsuccess = () => resolve(req.result as number);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function getPhotoBlob(id: number): Promise<Blob | null> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PHOTO_BLOBS_STORE, "readonly");
+    const store = tx.objectStore(PHOTO_BLOBS_STORE);
+    const req = store.get(id);
+    req.onsuccess = () => {
+      const record = req.result as { id: number; blob: Blob } | undefined;
+      resolve(record?.blob ?? null);
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function deletePhotoBlob(id: number): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PHOTO_BLOBS_STORE, "readwrite");
+    const store = tx.objectStore(PHOTO_BLOBS_STORE);
+    const req = store.delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
 }

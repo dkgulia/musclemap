@@ -68,6 +68,18 @@ export interface ScanRecord {
   bodyHeightCm: number;
   symmetryScore: number; // 0-100, 0 if not computed
   photoDataUrl: string; // JPEG data URL of captured frame, "" if not captured
+  // One-Photo Analyze fields (optional, absent for live scans)
+  isPhotoScan?: boolean;
+  hipBandWidthIndex?: number;
+  upperThighWidthIndex?: number;
+  midThighWidthIndex?: number;
+  calfWidthIndex?: number;
+  stanceWidthIndex?: number;
+  hipTiltDeg?: number;
+  shoulderTiltDeg?: number;
+  segmentationQuality?: number;
+  consistencyScore?: number;
+  photoBlobKey?: number; // key for Blob in "photoBlobs" store
 }
 
 export interface Measurements {
@@ -127,6 +139,42 @@ export interface ScanState {
   isReady: boolean;
   readySince: number | null; // timestamp when ready started
   tip: string;
+}
+
+// ─── One-Photo Analyze types ────────────────────────────────────
+
+/** Body silhouette width indices at key slice positions */
+export interface SliceIndices {
+  hipBandWidthIndex: number;
+  upperThighWidthIndex: number;
+  midThighWidthIndex: number;
+  calfWidthIndex: number;
+  // Left/right pixel breakdown for symmetry
+  hipBandLeftPx: number;
+  hipBandRightPx: number;
+  upperThighLeftPx: number;
+  upperThighRightPx: number;
+  midThighLeftPx: number;
+  midThighRightPx: number;
+  calfLeftPx: number;
+  calfRightPx: number;
+}
+
+/** Confidence breakdown for photo (static image) analysis */
+export interface PhotoConfidenceBreakdown {
+  landmarksVisible: number; // 0-30
+  brightness: number; // 0-20
+  distance: number; // 0-20
+  poseMatch: number; // 0-20
+  segmentationQuality: number; // 0-10
+}
+
+/** Consistency check details vs previous scan of same poseType */
+export interface ConsistencyDetails {
+  scaleMatch: boolean; // bodyHeightPx within ±7%
+  stanceMatch: boolean; // stanceWidth within ±8%
+  hipTiltMatch: boolean; // within ±6°
+  brightnessMatch: boolean; // within ±25 luma
 }
 
 /** Skeleton connections for drawing */

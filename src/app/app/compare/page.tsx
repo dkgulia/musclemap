@@ -143,6 +143,56 @@ function PhotoSlider({ scanA, scanB }: { scanA: ScanRecord; scanB: ScanRecord })
   );
 }
 
+function deltaConfidenceLabel(scanA: ScanRecord, scanB: ScanRecord): { label: string; color: string } {
+  const aConf = scanA.confidenceScore ?? 0;
+  const bConf = scanB.confidenceScore ?? 0;
+  const aCons = scanA.consistencyScore ?? 0;
+  const bCons = scanB.consistencyScore ?? 0;
+  if (aConf >= 75 && bConf >= 75 && aCons >= 70 && bCons >= 70) {
+    return { label: "High confidence", color: "text-emerald-400" };
+  }
+  if (aConf >= 60 && bConf >= 60) {
+    return { label: "Med confidence", color: "text-amber-400" };
+  }
+  return { label: "Low confidence", color: "text-muted" };
+}
+
+function RegionDeltaCard({ scanA, scanB }: { scanA: ScanRecord; scanB: ScanRecord }) {
+  const regions: { label: string; prev: number | undefined; curr: number | undefined }[] = [
+    { label: "Hip Band", prev: scanA.hipBandWidthIndex, curr: scanB.hipBandWidthIndex },
+    { label: "Upper Thigh", prev: scanA.upperThighWidthIndex, curr: scanB.upperThighWidthIndex },
+    { label: "Mid Thigh", prev: scanA.midThighWidthIndex, curr: scanB.midThighWidthIndex },
+    { label: "Calf", prev: scanA.calfWidthIndex, curr: scanB.calfWidthIndex },
+  ];
+
+  const conf = deltaConfidenceLabel(scanA, scanB);
+
+  return (
+    <div className="bg-surface rounded-2xl border border-border p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-xs font-medium text-text">Region Changes</h3>
+        <span className={`text-[10px] ${conf.color}`}>{conf.label}</span>
+      </div>
+      <div className="space-y-2">
+        {regions.map((r) => {
+          if (r.prev == null || r.curr == null) return null;
+          const deltaPct = r.prev > 0 ? ((r.curr - r.prev) / r.prev) * 100 : 0;
+          const sign = deltaPct > 0 ? "+" : "";
+          const color = Math.abs(deltaPct) < 0.5 ? "text-text2" : deltaPct > 0 ? "text-emerald-400" : "text-red-400";
+          return (
+            <div key={r.label} className="flex items-center justify-between">
+              <span className="text-[11px] text-muted">{r.label}</span>
+              <span className={`text-xs font-medium ${color}`}>
+                {sign}{deltaPct.toFixed(1)}%
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function ComparePage() {
   const [scans, setScans] = useState<ScanRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -248,6 +298,12 @@ export default function ComparePage() {
 
       {/* Photo comparison slider */}
       {scanA && scanB && <PhotoSlider scanA={scanA} scanB={scanB} />}
+
+      {/* Region delta card (only if both scans have slice data) */}
+      {scanA && scanB && scanA.isPhotoScan && scanB.isPhotoScan &&
+       scanA.hipBandWidthIndex != null && scanB.hipBandWidthIndex != null && (
+        <RegionDeltaCard scanA={scanA} scanB={scanB} />
+      )}
 
       {/* Time gap info */}
       {scanA && scanB && (

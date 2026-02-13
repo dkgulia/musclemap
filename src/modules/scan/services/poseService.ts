@@ -84,3 +84,109 @@ export function destroyPose() {
     initPromise = null;
   }
 }
+
+// ─── Image-mode PoseLandmarker (separate singleton for one-photo analyze) ───
+
+let imageLandmarker: PoseLandmarker | null = null;
+let imageInitPromise: Promise<PoseLandmarker> | null = null;
+
+export interface ImagePoseResult {
+  landmarks: Landmark[];
+  worldLandmarks: WorldLandmark[];
+  segmentationMask: Float32Array; // confidence 0..1 per pixel
+  maskWidth: number;
+  maskHeight: number;
+}
+
+export async function initPoseForImage(): Promise<PoseLandmarker> {
+  if (imageLandmarker) return imageLandmarker;
+  if (imageInitPromise) return imageInitPromise;
+
+  imageInitPromise = (async () => {
+    const vision = await FilesetResolver.forVisionTasks(WASM_CDN);
+    const lm = await PoseLandmarker.createFromOptions(vision, {
+      baseOptions: {
+        modelAssetPath: MODEL_URL,
+        delegate: "GPU",
+      },
+      runningMode: "IMAGE",
+      numPoses: 1,
+      outputSegmentationMasks: true,
+    });
+    imageLandmarker = lm;
+    return lm;
+  })();
+
+  return imageInitPromise;
+}
+
+export function detectPoseOnImage(
+  image: TexImageSource
+): ImagePoseResult | null {
+  if (!imageLandmarker) return null;
+
+  let result: ImagePoseResult | null = null;
+
+  try {
+    // Use callback form so we can copy mask data before it's freed
+    imageLandmarker.detect(image, (poseResult) => {
+      if (!poseResult.landmarks || poseResult.landmarks.length === 0) return;
+
+      const rawNorm = poseResult.landmarks[0];
+      const landmarks: Landmark[] = rawNorm.map((lm) => ({
+        x: lm.x,
+        y: lm.y,
+        z: lm.z,
+        visibility: lm.visibility ?? 0,
+      }));
+
+      let worldLandmarks: WorldLandmark[] = [];
+      if (poseResult.worldLandmarks && poseResult.worldLandmarks.length > 0) {
+        const rawWorld = poseResult.worldLandmarks[0];
+        worldLandmarks = rawWorld.map((wl) => ({
+          x: wl.x,
+          y: wl.y,
+          z: wl.z,
+          visibility: wl.visibility ?? 0,
+        }));
+      }
+
+      // Copy segmentation mask (lifetime only valid within callback)
+      let segmentationMask = new Float32Array(0);
+      let maskWidth = 0;
+      let maskHeight = 0;
+      if (
+        poseResult.segmentationMasks &&
+        poseResult.segmentationMasks.length > 0
+      ) {
+        const mask = poseResult.segmentationMasks[0];
+        maskWidth = mask.width;
+        maskHeight = mask.height;
+        const rawFloat = mask.getAsFloat32Array();
+        segmentationMask = new Float32Array(rawFloat); // copy
+      }
+
+      result = { landmarks, worldLandmarks, segmentationMask, maskWidth, maskHeight };
+    });
+  } catch {
+    return null;
+  }
+
+  return result;
+}
+
+export function destroyPoseForImage() {
+  if (imageLandmarker) {
+    imageLandmarker.close();
+    imageLandmarker = null;
+    imageInitPromise = null;
+  }
+}
+
+// Type alias for canvas image sources
+type TexImageSource =
+  | HTMLCanvasElement
+  | OffscreenCanvas
+  | HTMLImageElement
+  | HTMLVideoElement
+  | ImageBitmap;
