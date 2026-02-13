@@ -1,0 +1,27 @@
+/* Light theme (default) — pure white */
+:root {
+  --bg: #FFFFFF;
+  --surface: #FFFFFF;
+  --surface2: #FFFFFF;
+  --border: #E5E5EA;
+  --text: #1D1D1F;
+  --text2: #6E6E73;
+  --muted: #AEAEB2;
+  --white: #FFFFFF;
+  --black: #000000;
+  --accent: #1D1D1F;
+  --accent-fg: #FFFFFF;
+}
+
+/* Dark theme — pure black */
+[data-theme="dark"] {
+  --bg: #000000;
+  --surface: #000000;
+  --surface2: #000000;
+  --border: #2C2C2E;
+  --text: #F5F5F7;
+  --text2: #A1A1A6;
+  --muted: #636366;
+  --accent: #F5F5F7;
+  --accent-fg: #000000;
+}

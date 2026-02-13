@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 400" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.15">
+  <!-- Head -->
+  <circle cx="100" cy="42" r="18" />
+  <!-- Neck -->
+  <line x1="100" y1="60" x2="100" y2="75" />
+  <!-- Shoulders -->
+  <line x1="60" y1="85" x2="140" y2="85" />
+  <!-- Torso -->
+  <line x1="60" y1="85" x2="72" y2="185" />
+  <line x1="140" y1="85" x2="128" y2="185" />
+  <line x1="72" y1="185" x2="128" y2="185" />
+  <!-- Glute emphasis curves -->
+  <path d="M72,185 Q65,200 80,210" />
+  <path d="M128,185 Q135,200 120,210" />
+  <!-- Left arm (on waist) -->
+  <line x1="60" y1="85" x2="42" y2="120" />
+  <line x1="42" y1="120" x2="60" y2="150" />
+  <!-- Right arm (on waist) -->
+  <line x1="140" y1="85" x2="158" y2="120" />
+  <line x1="158" y1="120" x2="140" y2="150" />
+  <!-- Left leg -->
+  <line x1="80" y1="185" x2="72" y2="290" />
+  <line x1="72" y1="290" x2="68" y2="375" />
+  <!-- Right leg (stepped back slightly) -->
+  <line x1="120" y1="185" x2="130" y2="290" />
+  <line x1="130" y1="290" x2="135" y2="375" />
+  <!-- Feet -->
+  <line x1="58" y1="375" x2="78" y2="375" />
+  <line x1="125" y1="375" x2="145" y2="375" />
+</svg>
