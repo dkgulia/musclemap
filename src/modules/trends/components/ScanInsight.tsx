@@ -1,13 +1,6 @@
 "use client";
 
 import type { ScanRecord } from "@/modules/scan/models/types";
-import {
-  getGrade,
-  V_TAPER_GRADES,
-  SHOULDER_RATIO_GRADES,
-  SYMMETRY_GRADES,
-  getPoseInsight,
-} from "@/modules/scan/models/physiqueBenchmarks";
 
 const POSE_NAMES: Record<string, string> = {
   "front-biceps": "Front Biceps",
@@ -18,100 +11,96 @@ const POSE_NAMES: Record<string, string> = {
 
 interface Props {
   poseId: string;
-  vTaper: number;
-  shoulderIdx: number;
+  photoDataUrl: string;
   symmetryScore: number | null;
-  shoulderCm: number;
+  alignmentScore: number;
   previousScan: ScanRecord | null;
 }
 
-function formatDelta(current: number, previous: number, suffix = ""): string | null {
-  if (previous === 0) return null;
-  const diff = current - previous;
-  const pct = ((diff / previous) * 100).toFixed(1);
-  if (Math.abs(diff) < 0.001) return null;
-  const sign = diff > 0 ? "+" : "";
-  return suffix
-    ? `${sign}${diff.toFixed(1)}${suffix}`
-    : `${sign}${pct}%`;
+function getSymmetryLabel(score: number): { label: string; color: string } {
+  if (score >= 90) return { label: "Balanced", color: "text-emerald-400" };
+  if (score >= 75) return { label: "Moderate", color: "text-amber-400" };
+  return { label: "Imbalanced", color: "text-red-400" };
+}
+
+function getPoseQuality(alignment: number): { label: string; color: string } {
+  if (alignment >= 75) return { label: "Great", color: "text-emerald-400" };
+  if (alignment >= 55) return { label: "Good", color: "text-text2" };
+  return { label: "Okay", color: "text-muted" };
+}
+
+function timeSince(ts: number): string {
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  const weeks = Math.floor(days / 7);
+  return `${weeks}w ago`;
 }
 
 export default function ScanInsight({
   poseId,
-  vTaper,
-  shoulderIdx,
+  photoDataUrl,
   symmetryScore,
-  shoulderCm,
+  alignmentScore,
   previousScan,
 }: Props) {
-  const vtGrade = getGrade(vTaper, V_TAPER_GRADES);
-  const shGrade = getGrade(shoulderIdx, SHOULDER_RATIO_GRADES);
-  const symGrade = symmetryScore != null ? getGrade(symmetryScore, SYMMETRY_GRADES) : null;
-  const insight = getPoseInsight(poseId, vTaper, symmetryScore);
-
-  const vtDelta = previousScan ? formatDelta(vTaper, previousScan.vTaperIndex) : null;
-  const shDelta = previousScan && shoulderCm > 0 && previousScan.shoulderWidthCm > 0
-    ? formatDelta(shoulderCm, previousScan.shoulderWidthCm, "cm")
-    : null;
+  const poseName = POSE_NAMES[poseId] || poseId;
+  const sym = symmetryScore != null ? getSymmetryLabel(symmetryScore) : null;
+  const quality = getPoseQuality(alignmentScore);
 
   return (
-    <div className="mx-5 bg-surface border border-accent/20 rounded-2xl p-4">
-      {/* Header */}
-      <div className="flex items-center gap-2 mb-3">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
-          <path d="M20 6L9 17l-5-5" />
-        </svg>
-        <span className="text-sm font-medium text-text">
-          {POSE_NAMES[poseId] || poseId} captured
-        </span>
-      </div>
+    <div className="mx-5 bg-surface border border-accent/20 rounded-2xl overflow-hidden">
+      {/* Photo thumbnail */}
+      {photoDataUrl && (
+        <div className="w-full aspect-[3/4] max-h-48 overflow-hidden">
+          <img
+            src={photoDataUrl}
+            alt={`${poseName} progress photo`}
+            className="w-full h-full object-cover"
+          />
+        </div>
+      )}
 
-      {/* Metrics */}
-      <div className="space-y-2 mb-3">
-        {/* V-Taper */}
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-muted">V-Taper</span>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-mono text-text">{vTaper.toFixed(2)}</span>
-            <span className={`text-xs font-medium ${vtGrade.color}`}>{vtGrade.label}</span>
-            {vtDelta && (
-              <span className={`text-[11px] ${parseFloat(vtDelta) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                {vtDelta}
-              </span>
-            )}
-          </div>
+      <div className="p-4">
+        {/* Header */}
+        <div className="flex items-center gap-2 mb-3">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+            <path d="M20 6L9 17l-5-5" />
+          </svg>
+          <span className="text-sm font-medium text-text">
+            {poseName} captured
+          </span>
         </div>
 
-        {/* Shoulders */}
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-muted">Shoulders</span>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-mono text-text">
-              {shoulderCm > 0 ? `${shoulderCm.toFixed(1)}cm` : shoulderIdx.toFixed(3)}
-            </span>
-            <span className={`text-xs font-medium ${shGrade.color}`}>{shGrade.label}</span>
-            {shDelta && (
-              <span className={`text-[11px] ${parseFloat(shDelta) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                {shDelta}
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Symmetry */}
-        {symGrade && symmetryScore != null && (
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted">Symmetry</span>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-mono text-text">{Math.round(symmetryScore)}%</span>
-              <span className={`text-xs font-medium ${symGrade.color}`}>{symGrade.label}</span>
+        {/* Simple labels */}
+        <div className="space-y-1.5 mb-3">
+          {sym && (
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted">Symmetry</span>
+              <span className={`text-xs font-medium ${sym.color}`}>{sym.label}</span>
             </div>
+          )}
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted">Pose quality</span>
+            <span className={`text-xs font-medium ${quality.color}`}>{quality.label}</span>
           </div>
+        </div>
+
+        {/* Previous scan reference */}
+        {previousScan ? (
+          <p className="text-[11px] text-muted">
+            vs last photo: {timeSince(previousScan.timestamp)}
+          </p>
+        ) : (
+          <p className="text-[11px] text-muted">
+            First {poseName} photo — keep it up!
+          </p>
         )}
       </div>
-
-      {/* Insight */}
-      <p className="text-[11px] text-text2 leading-relaxed">{insight}</p>
     </div>
   );
 }

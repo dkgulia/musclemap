@@ -94,7 +94,7 @@ export default function AIReport({ scans, heightCm }: Props) {
 
       {!report && !loading && (
         <p className="text-xs text-text2 mb-3 leading-relaxed">
-          Get an AI-powered analysis of your progress, symmetry, and actionable tips.
+          Get AI-powered training tips based on your progress photos and measurements.
         </p>
       )}
 

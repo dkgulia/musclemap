@@ -5,38 +5,31 @@ import Image from "next/image";
 import { ThemeProvider } from "@/context/ThemeContext";
 import ThemeToggle from "@/components/ThemeToggle";
 
-const stats = [
-  { value: "10K+", label: "Scans completed" },
-  { value: "98%", label: "Accuracy rate" },
-  { value: "4.9", label: "User rating" },
-  { value: "<30s", label: "Per scan" },
-];
-
 const steps = [
   {
     num: "01",
-    title: "Pick a Pose Template",
-    desc: "Choose from guided templates for consistent, comparable scans.",
+    title: "Pick a Pose",
+    desc: "Choose a guided template. The ghost overlay ensures the same framing every time.",
     img: "https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=600&q=80&fit=crop",
   },
   {
     num: "02",
-    title: "Align & Scan",
-    desc: "Match the overlay, hold steady, and capture your scan.",
+    title: "Capture Your Photo",
+    desc: "Match the overlay, hold steady. Your progress photo is saved automatically.",
     img: "https://images.unsplash.com/photo-1605296867424-35fc25c9212a?w=600&q=80&fit=crop",
   },
   {
     num: "03",
-    title: "Compare & Track Trends",
-    desc: "See your progress over weeks and months with real data.",
+    title: "Compare Over Time",
+    desc: "Drag the before/after slider to see real changes week by week.",
     img: "https://images.unsplash.com/photo-1574680096145-d05b474e2155?w=600&q=80&fit=crop",
   },
 ];
 
 const features = [
   {
-    title: "Pose-Based Scanning",
-    desc: "No tape measure. AI detects landmarks and calculates indices from a single photo.",
+    title: "Ghost Overlay Posing",
+    desc: "Match the same pose every time. Consistent framing makes real differences visible.",
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--text)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <path d="M3 7V5a2 2 0 0 1 2-2h2" /><path d="M17 3h2a2 2 0 0 1 2 2v2" />
@@ -46,8 +39,8 @@ const features = [
     ),
   },
   {
-    title: "Side-by-Side Compare",
-    desc: "Drag-to-compare slider shows before and after. See exactly what changed.",
+    title: "Before/After Slider",
+    desc: "Drag to compare two progress photos side by side. Same pose, same angle — real changes.",
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--text)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <rect x="2" y="3" width="8" height="18" rx="2" />
@@ -56,17 +49,20 @@ const features = [
     ),
   },
   {
-    title: "Progress Charts",
-    desc: "Track development over 30, 60, 90 day windows. Numbers don't lie.",
+    title: "Photo Timeline",
+    desc: "Your progress photos organized by pose and date. See your transformation at a glance.",
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--text)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+        <rect x="3" y="3" width="7" height="7" rx="1" />
+        <rect x="14" y="3" width="7" height="7" rx="1" />
+        <rect x="3" y="14" width="7" height="7" rx="1" />
+        <rect x="14" y="14" width="7" height="7" rx="1" />
       </svg>
     ),
   },
   {
-    title: "Weekly AI Insights",
-    desc: "Personalized recommendations based on your muscle development patterns.",
+    title: "AI Training Tips",
+    desc: "Log your tape measurements and get personalized advice from an AI coach.",
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--text)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 2a10 10 0 1 0 10 10" /><path d="M12 2v10l7-4" />
@@ -103,54 +99,26 @@ export default function LandingPage() {
             <div>
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-border text-xs text-text2 mb-6">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Pose-based physique tracking
+                Progress photo studio
               </div>
               <h1 className="font-display text-[2.75rem] sm:text-5xl md:text-[3.75rem] font-bold text-text tracking-tight leading-[1.05]">
-Track muscle progress with pose scans              <br />
-                <span className="text-muted">with AI</span>
+                Same pose, same angle,
+                <br />
+                <span className="text-muted">every time</span>
               </h1>
               <p className="text-base sm:text-lg text-text2 mt-6 leading-relaxed max-w-[420px]">
-                Guided pose scans &rarr; muscle indexes &rarr; progress trends.
-                Built for consistency, not guesses.
+                Guided ghost overlays ensure your progress photos are perfectly consistent.
+                See real changes — not lighting tricks.
               </p>
               <div className="flex flex-wrap items-center gap-4 mt-9">
                 <Link
                   href="/app/scan"
                   className="inline-flex items-center gap-2 px-8 py-3.5 rounded-full bg-accent text-accent-fg text-sm font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-accent/10"
                 >
-                  Start scanning
+                  Take your first photo
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
                 </Link>
-                <span className="text-sm text-muted">Free to try &middot; No account needed &middot; Privacy-first</span>
-              </div>
-
-              {/* Social proof */}
-              <div className="flex items-center gap-3 mt-7">
-                <div className="flex -space-x-2">
-                  {[
-                    "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face",
-                    "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop&crop=face",
-                    "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=80&h=80&fit=crop&crop=face",
-                    "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=80&h=80&fit=crop&crop=face",
-                  ].map((src, i) => (
-                    <img
-                      key={i}
-                      src={src}
-                      alt=""
-                      className="w-8 h-8 rounded-full border-2 border-bg object-cover"
-                    />
-                  ))}
-                </div>
-                <div>
-                  <div className="flex items-center gap-0.5">
-                    {[...Array(5)].map((_, i) => (
-                      <svg key={i} width="12" height="12" viewBox="0 0 24 24" fill="var(--text)" stroke="none">
-                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                      </svg>
-                    ))}
-                  </div>
-                  <p className="text-[11px] text-muted mt-0.5">Trusted by 10K+ athletes</p>
-                </div>
+                <span className="text-sm text-muted">Free &middot; No account &middot; On-device only</span>
               </div>
             </div>
 
@@ -159,7 +127,7 @@ Track muscle progress with pose scans              <br />
               <div className="relative rounded-[2rem] overflow-hidden aspect-[4/5] shadow-2xl shadow-black/10">
                 <Image
                   src="https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=800&q=80&fit=crop"
-                  alt="Muscular athlete flexing"
+                  alt="Athlete posing"
                   fill
                   className="object-cover"
                   priority
@@ -167,20 +135,17 @@ Track muscle progress with pose scans              <br />
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/5 to-transparent" />
 
-                {/* Floating score card */}
+                {/* Floating card — ghost overlay concept */}
                 <div className="absolute bottom-5 left-5 right-5 bg-white/10 backdrop-blur-2xl rounded-2xl p-4 border border-white/20">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-white/15 flex items-center justify-center ring-2 ring-white/25">
-                      <span className="text-base font-bold text-white">87</span>
+                    <div className="w-10 h-10 rounded-full bg-white/15 flex items-center justify-center ring-2 ring-white/25">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20 6L9 17l-5-5" />
+                      </svg>
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm font-semibold text-white">Front Biceps Index</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <div className="flex-1 h-1 rounded-full bg-white/20 overflow-hidden">
-                          <div className="h-full w-[87%] bg-white rounded-full" />
-                        </div>
-                        <span className="text-[10px] text-white/70 font-medium">+4.2%</span>
-                      </div>
+                      <p className="text-sm font-semibold text-white">Pose matched</p>
+                      <p className="text-xs text-white/60 mt-0.5">Photo saved to your timeline</p>
                     </div>
                   </div>
                 </div>
@@ -189,13 +154,17 @@ Track muscle progress with pose scans              <br />
           </div>
         </section>
 
-        {/* Stats */}
+        {/* Value props */}
         <section className="px-6 py-8 mt-4">
-          <div className="max-w-[1100px] mx-auto grid grid-cols-2 sm:grid-cols-4 gap-8 border border-border rounded-2xl py-8 px-6">
-            {stats.map((s, i) => (
-              <div key={s.label} className={`text-center ${i < 3 ? "sm:border-r sm:border-border" : ""}`}>
-                <p className="font-display text-3xl sm:text-4xl font-bold text-text">{s.value}</p>
-                <p className="text-sm text-muted mt-1">{s.label}</p>
+          <div className="max-w-[1100px] mx-auto grid grid-cols-3 gap-8 border border-border rounded-2xl py-8 px-6">
+            {[
+              { value: "Consistent", label: "Ghost overlay guides every pose" },
+              { value: "Visual", label: "Before/after photo slider" },
+              { value: "Private", label: "All data stays on your device" },
+            ].map((s, i) => (
+              <div key={s.label} className={`text-center ${i < 2 ? "sm:border-r sm:border-border" : ""}`}>
+                <p className="font-display text-xl sm:text-2xl font-bold text-text">{s.value}</p>
+                <p className="text-xs sm:text-sm text-muted mt-1">{s.label}</p>
               </div>
             ))}
           </div>
@@ -208,7 +177,7 @@ Track muscle progress with pose scans              <br />
             <h2 className="font-display text-3xl sm:text-[2.75rem] font-bold text-text tracking-tight leading-tight">
               Three steps to track
               <br />
-              <span className="text-muted">your physique</span>
+              <span className="text-muted">your transformation</span>
             </h2>
           </div>
           <div className="grid md:grid-cols-3 gap-6">
@@ -297,51 +266,27 @@ Track muscle progress with pose scans              <br />
             </div>
 
             <div>
-              <p className="text-xs font-semibold text-muted uppercase tracking-widest mb-3">Results</p>
+              <p className="text-xs font-semibold text-muted uppercase tracking-widest mb-3">Why it works</p>
               <h2 className="font-display text-3xl sm:text-[2.5rem] font-bold text-text tracking-tight leading-tight">
-                Real results,
+                Consistency reveals
                 <br />
-                <span className="text-muted">backed by data</span>
+                <span className="text-muted">what mirrors can&apos;t</span>
               </h2>
               <p className="text-base text-text2 mt-4 leading-relaxed max-w-[440px]">
-                MuscleMap doesn&apos;t just show photos. It calculates muscle indices and
-                tracks development with real metrics over time.
+                You can&apos;t see 0.5cm of arm growth in the mirror. But when every photo
+                is the same pose and angle, the difference becomes obvious over weeks.
               </p>
               <div className="grid grid-cols-3 gap-3 mt-8">
                 {[
-                  { val: "+12%", label: "Shoulder" },
-                  { val: "+8%",  label: "V-Taper" },
-                  { val: "+15%", label: "Arms" },
+                  { val: "Same pose", label: "Every time" },
+                  { val: "Same angle", label: "Ghost overlay" },
+                  { val: "Real change", label: "Week by week" },
                 ].map((m) => (
                   <div key={m.label} className="rounded-xl border border-border p-3 text-center card-hover">
-                    <p className="font-display text-2xl font-bold text-text">{m.val}</p>
+                    <p className="font-display text-sm font-bold text-text">{m.val}</p>
                     <p className="text-[11px] text-muted mt-0.5">{m.label}</p>
                   </div>
                 ))}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Testimonial */}
-        <section className="px-6 py-12 border-y border-border">
-          <div className="max-w-[680px] mx-auto text-center">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="var(--border)" className="mx-auto mb-6">
-              <path d="M11.3 2.5c-2.4 1.2-4.3 2.7-5.7 4.5S3.5 10.8 3.5 13c0 1.9.6 3.4 1.7 4.5 1.2 1.2 2.6 1.7 4.3 1.7 1.4 0 2.6-.5 3.5-1.4.9-1 1.4-2.1 1.4-3.4 0-1.3-.4-2.3-1.3-3.2-.8-.8-1.9-1.2-3.2-1.2-.4 0-.9.1-1.4.2.5-1.5 1.4-2.9 2.5-4.1l-2.2-1.3-.5-.3zm9.6 0c-2.4 1.2-4.3 2.7-5.7 4.5-1.4 1.8-2.1 3.8-2.1 6 0 1.9.6 3.4 1.7 4.5 1.2 1.2 2.6 1.7 4.3 1.7 1.4 0 2.6-.5 3.5-1.4.9-1 1.4-2.1 1.4-3.4 0-1.3-.4-2.3-1.3-3.2-.8-.8-1.9-1.2-3.2-1.2-.4 0-.9.1-1.4.2.5-1.5 1.4-2.9 2.5-4.1l-2.2-1.3-.5-.3z" />
-            </svg>
-            <p className="text-lg sm:text-xl text-text leading-relaxed font-medium">
-              I&apos;ve been tracking my physique for 3 months with MuscleMap. The data-driven
-              approach completely changed how I think about progress. No more guessing.
-            </p>
-            <div className="flex items-center justify-center gap-3 mt-6">
-              <img
-                src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face"
-                alt=""
-                className="w-10 h-10 rounded-full object-cover"
-              />
-              <div className="text-left">
-                <p className="text-sm font-semibold text-text">Marcus T.</p>
-                <p className="text-xs text-muted">Natural Bodybuilder</p>
               </div>
             </div>
           </div>
@@ -360,10 +305,10 @@ Track muscle progress with pose scans              <br />
             <div className="absolute inset-0 bg-black/75" />
             <div className="relative z-10 text-center py-16 px-6">
               <h2 className="font-display text-3xl sm:text-4xl md:text-5xl font-bold text-white tracking-tight">
-                Start your transformation
+                Start tracking your progress
               </h2>
               <p className="text-base text-white/50 mt-3 mb-7 max-w-[400px] mx-auto">
-                Free to use. No account required. Your data stays on your device.
+                Free to use. No account required. Your photos stay on your device.
               </p>
               <Link
                 href="/app/scan"

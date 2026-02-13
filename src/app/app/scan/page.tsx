@@ -54,7 +54,7 @@ function ScanPageInner() {
 
   const [landmarks, setLandmarks] = useState<Landmark[] | null>(null);
   const [alignmentScore, setAlignmentScore] = useState(0);
-  const [confidenceScore, setConfidenceScore] = useState(0);
+  const [, setConfidenceScore] = useState(0);
   const [isReady, setIsReady] = useState(false);
   const [tip, setTip] = useState("Stand in a well-lit area facing the camera");
   const [videoSize, setVideoSize] = useState({ w: 720, h: 960 });
@@ -63,7 +63,7 @@ function ScanPageInner() {
   const [canRescan, setCanRescan] = useState(false);
   const [symmetryData, setSymmetryData] = useState<SymmetryData | null>(null);
   const [capturedData, setCapturedData] = useState<{
-    vTaper: number; shoulderIdx: number; symmetryScore: number | null; shoulderCm: number;
+    photoDataUrl: string; symmetryScore: number | null; alignmentScore: number;
   } | null>(null);
   const [previousScan, setPreviousScan] = useState<ScanRecord | null>(null);
 
@@ -293,6 +293,23 @@ function ScanPageInner() {
       bodyHeightCm = medBHM * factor * 100;
     }
 
+    // Capture progress photo from video frame
+    let photoDataUrl = "";
+    const video = cameraRef.current?.videoEl;
+    if (video && video.readyState >= 2 && !mockMode) {
+      const offscreen = document.createElement("canvas");
+      offscreen.width = video.videoWidth;
+      offscreen.height = video.videoHeight;
+      const octx = offscreen.getContext("2d");
+      if (octx) {
+        // Mirror to match what user sees on screen
+        octx.translate(offscreen.width, 0);
+        octx.scale(-1, 1);
+        octx.drawImage(video, 0, 0);
+        photoDataUrl = offscreen.toDataURL("image/jpeg", 0.75);
+      }
+    }
+
     await addScan({
       timestamp: Date.now(),
       poseId: selectedTemplateId,
@@ -308,14 +325,14 @@ function ScanPageInner() {
       hipWidthCm: Math.round(hipWidthCm * 10) / 10,
       bodyHeightCm: Math.round(bodyHeightCm * 10) / 10,
       symmetryScore: Math.round(symmetryData?.overallScore ?? 0),
+      photoDataUrl,
     });
 
     // Store captured values for ScanInsight display
     setCapturedData({
-      vTaper: Math.round(medVT * 1000) / 1000,
-      shoulderIdx: Math.round(medSI * 1000) / 1000,
+      photoDataUrl,
       symmetryScore: symmetryData ? Math.round(symmetryData.overallScore) : null,
-      shoulderCm: Math.round(shoulderWidthCm * 10) / 10,
+      alignmentScore: Math.round(smoothedAlignment.current),
     });
 
     // Fetch previous scan for delta comparison (the one before current)
@@ -329,7 +346,7 @@ function ScanPageInner() {
       setJustLogged(false);
       setCanRescan(true);
     }, 5000); // Show insight for 5 seconds instead of 3
-  }, [selectedTemplateId, justLogged, userHeightCm, symmetryData]);
+  }, [selectedTemplateId, justLogged, userHeightCm, symmetryData, mockMode]);
 
   // Auto-capture: fire ONCE when isReady first becomes true, then stop
   const prevReady = useRef(false);
@@ -346,7 +363,6 @@ function ScanPageInner() {
   }, []);
 
   const displayAlignment = Math.round(alignmentScore);
-  const displayConfidence = Math.round(confidenceScore);
 
   return (
     <div className="flex flex-col gap-3 pt-1 pb-4">
@@ -389,10 +405,10 @@ function ScanPageInner() {
             </div>
             <div>
               <p className="text-[11px] font-medium text-white/90">
-                {justLogged ? "Captured!" : isReady ? "Ready!" : displayAlignment >= 45 ? `Almost ${displayAlignment}%` : `Aligning ${displayAlignment}%`}
+                {justLogged ? "Captured!" : isReady ? "Ready!" : displayAlignment >= 45 ? "Almost there..." : "Match the pose"}
               </p>
               <p className="text-[9px] text-white/50">
-                Conf {displayConfidence}%
+                {isReady ? "Hold still" : "Align with the ghost"}
               </p>
             </div>
           </div>
@@ -411,10 +427,9 @@ function ScanPageInner() {
       {justLogged && capturedData ? (
         <ScanInsight
           poseId={selectedTemplateId}
-          vTaper={capturedData.vTaper}
-          shoulderIdx={capturedData.shoulderIdx}
+          photoDataUrl={capturedData.photoDataUrl}
           symmetryScore={capturedData.symmetryScore}
-          shoulderCm={capturedData.shoulderCm}
+          alignmentScore={capturedData.alignmentScore}
           previousScan={previousScan}
         />
       ) : canRescan ? (

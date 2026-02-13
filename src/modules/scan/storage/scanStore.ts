@@ -1,7 +1,6 @@
 /**
  * IndexedDB storage for scan records.
- * Stores ONLY numeric measurements + timestamp + poseId.
- * NO images, NO pixels, NO blobs.
+ * Stores numeric measurements + progress photo + timestamp + poseId.
  */
 
 import type { ScanRecord } from "../models/types";
@@ -15,6 +14,7 @@ function normalizeScanRecord(raw: Record<string, unknown>): ScanRecord {
     hipWidthCm: rec.hipWidthCm ?? 0,
     bodyHeightCm: rec.bodyHeightCm ?? 0,
     symmetryScore: rec.symmetryScore ?? 0,
+    photoDataUrl: rec.photoDataUrl ?? "",
   };
 }
 

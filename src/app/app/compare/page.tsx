@@ -1,8 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import Card from "@/components/Card";
-import IndexCards from "@/modules/compare/components/IndexCards";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { listScans } from "@/modules/scan/storage/scanStore";
 import type { ScanRecord } from "@/modules/scan/models/types";
 
@@ -15,12 +13,134 @@ const POSE_NAMES: Record<string, string> = {
 
 function formatDate(ts: number): string {
   const d = new Date(ts);
-  return `${d.toLocaleString("default", { month: "short" })} ${d.getDate()}, ${d.toLocaleTimeString("default", { hour: "2-digit", minute: "2-digit" })}`;
+  return `${d.toLocaleString("default", { month: "short" })} ${d.getDate()}`;
 }
 
 function scanLabel(scan: ScanRecord): string {
   const pose = POSE_NAMES[scan.poseId] || scan.poseId;
   return `${pose} — ${formatDate(scan.timestamp)}`;
+}
+
+function PhotoSlider({ scanA, scanB }: { scanA: ScanRecord; scanB: ScanRecord }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [sliderPos, setSliderPos] = useState(50);
+  const [containerWidth, setContainerWidth] = useState<number | null>(null);
+  const dragging = useRef(false);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      setContainerWidth(entries[0].contentRect.width);
+    });
+    ro.observe(el);
+    setContainerWidth(el.clientWidth);
+    return () => ro.disconnect();
+  }, []);
+
+  const updatePosition = (clientX: number) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const pct = ((clientX - rect.left) / rect.width) * 100;
+    setSliderPos(Math.max(0, Math.min(100, pct)));
+  };
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    dragging.current = true;
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    updatePosition(e.clientX);
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!dragging.current) return;
+    updatePosition(e.clientX);
+  };
+
+  const onPointerUp = () => {
+    dragging.current = false;
+  };
+
+  const hasPhotos = scanA.photoDataUrl && scanB.photoDataUrl;
+
+  if (!hasPhotos) {
+    return (
+      <div className="bg-surface rounded-2xl border border-border p-6 text-center">
+        <p className="text-sm text-text2 mb-1">Photos not available</p>
+        <p className="text-xs text-muted">
+          {!scanA.photoDataUrl && !scanB.photoDataUrl
+            ? "Both scans were captured before photo saving was enabled."
+            : !scanA.photoDataUrl
+            ? "The older scan doesn't have a photo saved."
+            : "The newer scan doesn't have a photo saved."}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div
+        ref={containerRef}
+        className="relative rounded-2xl overflow-hidden aspect-[3/4] bg-black touch-none select-none cursor-col-resize"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+      >
+        {/* Photo B (newer) — full background */}
+        <img
+          src={scanB.photoDataUrl}
+          alt="After"
+          className="absolute inset-0 w-full h-full object-cover"
+          draggable={false}
+        />
+
+        {/* Photo A (older) — clipped by slider */}
+        <div
+          className="absolute inset-0 overflow-hidden"
+          style={{ width: `${sliderPos}%` }}
+        >
+          <img
+            src={scanA.photoDataUrl}
+            alt="Before"
+            className="absolute inset-0 w-full h-full object-cover"
+            style={{ minWidth: containerWidth ? `${containerWidth}px` : "100%" }}
+            draggable={false}
+          />
+        </div>
+
+        {/* Slider line */}
+        <div
+          className="absolute top-0 bottom-0 w-0.5 bg-white/80 z-10"
+          style={{ left: `${sliderPos}%`, transform: "translateX(-50%)" }}
+        >
+          {/* Handle */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 shadow-lg flex items-center justify-center">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round">
+              <path d="M8 6l-4 6 4 6" />
+              <path d="M16 6l4 6-4 6" />
+            </svg>
+          </div>
+        </div>
+
+        {/* Date labels */}
+        <div className="absolute bottom-3 left-3 z-10">
+          <span className="text-[10px] font-medium text-white bg-black/50 backdrop-blur-sm px-2 py-1 rounded-md">
+            {formatDate(scanA.timestamp)}
+          </span>
+        </div>
+        <div className="absolute bottom-3 right-3 z-10">
+          <span className="text-[10px] font-medium text-white bg-black/50 backdrop-blur-sm px-2 py-1 rounded-md">
+            {formatDate(scanB.timestamp)}
+          </span>
+        </div>
+      </div>
+
+      <div className="flex justify-between px-1">
+        <span className="text-[10px] text-muted">Before</span>
+        <span className="text-[10px] text-muted">After</span>
+      </div>
+    </div>
+  );
 }
 
 export default function ComparePage() {
@@ -34,8 +154,12 @@ export default function ComparePage() {
     const data = await listScans(undefined, 100);
     setScans(data);
 
-    // Auto-select: B = most recent, A = second most recent
-    if (data.length >= 2) {
+    // Auto-select scans that have photos: B = most recent with photo, A = second most recent with photo
+    const withPhotos = data.filter((s) => s.photoDataUrl);
+    if (withPhotos.length >= 2) {
+      setScanBId(withPhotos[0].id ?? null);
+      setScanAId(withPhotos[1].id ?? null);
+    } else if (data.length >= 2) {
       setScanBId(data[0].id ?? null);
       setScanAId(data[1].id ?? null);
     } else if (data.length === 1) {
@@ -63,17 +187,17 @@ export default function ComparePage() {
   if (scans.length < 2) {
     return (
       <div className="flex flex-col gap-4 p-5">
-        <Card className="text-center !py-8">
+        <div className="bg-surface rounded-2xl border border-border p-6 text-center">
           <div className="w-10 h-10 mx-auto mb-3 rounded-full bg-text/[0.05] flex items-center justify-center">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M16 3h5v5M8 3H3v5M3 16v5h5M21 16v5h-5" />
             </svg>
           </div>
-          <p className="text-sm text-text2 mb-1">Not enough scans</p>
+          <p className="text-sm text-text2 mb-1">Not enough photos</p>
           <p className="text-xs text-muted">
-            Log at least 2 scans from the Scan tab to compare your progress
+            Log at least 2 progress photos from the Scan tab to compare
           </p>
-        </Card>
+        </div>
       </div>
     );
   }
@@ -84,7 +208,7 @@ export default function ComparePage() {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="text-[10px] text-muted uppercase tracking-wider mb-1.5 block px-1">
-            Scan A (older)
+            Before
           </label>
           <select
             value={scanAId ?? ""}
@@ -92,7 +216,7 @@ export default function ComparePage() {
             className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 text-xs text-text appearance-none cursor-pointer focus:outline-none focus:border-accent/50"
           >
             <option value="" disabled>
-              Select scan
+              Select photo
             </option>
             {scans.map((s) => (
               <option key={s.id} value={s.id}>
@@ -103,7 +227,7 @@ export default function ComparePage() {
         </div>
         <div>
           <label className="text-[10px] text-muted uppercase tracking-wider mb-1.5 block px-1">
-            Scan B (newer)
+            After
           </label>
           <select
             value={scanBId ?? ""}
@@ -111,7 +235,7 @@ export default function ComparePage() {
             className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 text-xs text-text appearance-none cursor-pointer focus:outline-none focus:border-accent/50"
           >
             <option value="" disabled>
-              Select scan
+              Select photo
             </option>
             {scans.map((s) => (
               <option key={s.id} value={s.id}>
@@ -122,9 +246,12 @@ export default function ComparePage() {
         </div>
       </div>
 
-      {/* Summary card */}
+      {/* Photo comparison slider */}
+      {scanA && scanB && <PhotoSlider scanA={scanA} scanB={scanB} />}
+
+      {/* Time gap info */}
       {scanA && scanB && (
-        <Card className="!p-3">
+        <div className="bg-surface rounded-2xl border border-border p-3">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[10px] text-muted uppercase tracking-wider">Comparing</p>
@@ -139,33 +266,24 @@ export default function ComparePage() {
               </p>
             </div>
           </div>
-        </Card>
-      )}
-
-      {/* Delta cards */}
-      {scanA && scanB && (
-        <div>
-          <h3 className="text-[11px] text-muted uppercase tracking-wider mb-2 px-1">
-            Index Comparison
-          </h3>
-          <IndexCards scanA={scanA} scanB={scanB} />
         </div>
       )}
 
       {(!scanA || !scanB) && (
-        <Card className="text-center !py-6">
-          <p className="text-sm text-text2">Select two scans above to compare</p>
-        </Card>
+        <div className="bg-surface rounded-2xl border border-border p-6 text-center">
+          <p className="text-sm text-text2">Select two photos above to compare</p>
+        </div>
       )}
     </div>
   );
 }
 
 function formatTimeGap(ms: number): string {
-  const mins = Math.floor(ms / 60000);
-  if (mins < 60) return `${mins}m`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ${mins % 60}m`;
-  const days = Math.floor(hours / 24);
-  return `${days}d`;
+  const days = Math.floor(Math.abs(ms) / 86400000);
+  if (days === 0) return "Same day";
+  if (days < 7) return `${days}d`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 8) return `${weeks}w`;
+  const months = Math.floor(days / 30);
+  return `${months}mo`;
 }

@@ -1,9 +1,7 @@
 "use client";
 
-import Card from "@/components/Card";
 import { deleteScan } from "@/modules/scan/storage/scanStore";
 import type { ScanRecord } from "@/modules/scan/models/types";
-import { getGrade, V_TAPER_GRADES } from "@/modules/scan/models/physiqueBenchmarks";
 
 const POSE_NAMES: Record<string, string> = {
   "front-biceps": "Front Biceps",
@@ -14,7 +12,7 @@ const POSE_NAMES: Record<string, string> = {
 
 function formatDate(ts: number): string {
   const d = new Date(ts);
-  return `${d.toLocaleString("default", { month: "short" })} ${d.getDate()}, ${d.toLocaleTimeString("default", { hour: "2-digit", minute: "2-digit" })}`;
+  return `${d.toLocaleString("default", { month: "short" })} ${d.getDate()}`;
 }
 
 interface Props {
@@ -23,7 +21,8 @@ interface Props {
 }
 
 export default function RecentScansList({ scans, onDelete }: Props) {
-  const handleDelete = async (id: number | undefined) => {
+  const handleDelete = async (e: React.MouseEvent, id: number | undefined) => {
+    e.stopPropagation();
     if (id == null) return;
     await deleteScan(id);
     onDelete?.();
@@ -32,56 +31,50 @@ export default function RecentScansList({ scans, onDelete }: Props) {
   if (scans.length === 0) {
     return (
       <div className="space-y-2">
-        <h3 className="text-[11px] text-muted uppercase tracking-wider px-1">Recent Scans</h3>
-        <Card className="text-center !py-6">
-          <p className="text-sm text-text2 mb-1">No scans yet</p>
-          <p className="text-xs text-muted">Go to Scan tab to log your first scan</p>
-        </Card>
+        <h3 className="text-[11px] text-muted uppercase tracking-wider px-1">Progress Photos</h3>
+        <div className="bg-surface rounded-2xl border border-border p-6 text-center">
+          <p className="text-sm text-text2 mb-1">No photos yet</p>
+          <p className="text-xs text-muted">Go to Scan tab to capture your first progress photo</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-2">
-      <h3 className="text-[11px] text-muted uppercase tracking-wider px-1">Recent Scans</h3>
-      {scans.map((scan) => {
-        const vtGrade = getGrade(scan.vTaperIndex, V_TAPER_GRADES);
-        return (
-          <Card key={scan.id} className="flex items-center justify-between !py-3">
-            <div className="min-w-0 flex-1">
-              <p className="text-sm text-text">{POSE_NAMES[scan.poseId] || scan.poseId}</p>
-              <p className="text-[11px] text-muted mt-0.5">{formatDate(scan.timestamp)}</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <p className="text-sm font-mono text-text">{scan.vTaperIndex.toFixed(2)}</p>
-                <p className={`text-[10px] font-medium ${vtGrade.color}`}>{vtGrade.label}</p>
+      <h3 className="text-[11px] text-muted uppercase tracking-wider px-1">Progress Photos</h3>
+      <div className="grid grid-cols-3 gap-2">
+        {scans.map((scan) => (
+          <div
+            key={scan.id}
+            className="relative bg-surface rounded-xl border border-border overflow-hidden group"
+          >
+            {scan.photoDataUrl ? (
+              <img
+                src={scan.photoDataUrl}
+                alt={`${POSE_NAMES[scan.poseId] || scan.poseId}`}
+                className="w-full aspect-[3/4] object-cover"
+              />
+            ) : (
+              <div className="w-full aspect-[3/4] bg-text/[0.03] flex items-center justify-center">
+                <span className="text-[10px] text-muted">No photo</span>
               </div>
-              {scan.shoulderWidthCm > 0 && (
-                <div className="text-right">
-                  <p className="text-sm font-mono text-text2">{scan.shoulderWidthCm.toFixed(1)}</p>
-                  <p className="text-[10px] text-muted">sh cm</p>
-                </div>
-              )}
-              {scan.symmetryScore > 0 && (
-                <div className="text-right">
-                  <p className="text-sm font-mono text-text2">{Math.round(scan.symmetryScore)}%</p>
-                  <p className="text-[10px] text-muted">sym</p>
-                </div>
-              )}
-              <button
-                onClick={() => handleDelete(scan.id)}
-                className="p-1.5 rounded-lg hover:bg-text/[0.05] transition-colors cursor-pointer"
-                title="Delete scan"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14" />
-                </svg>
-              </button>
+            )}
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2 pt-6">
+              <p className="text-[10px] text-white/90 font-medium">{formatDate(scan.timestamp)}</p>
             </div>
-          </Card>
-        );
-      })}
+            <button
+              onClick={(e) => handleDelete(e, scan.id)}
+              className="absolute top-1 right-1 p-1 rounded-md bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+              title="Delete"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

@@ -67,6 +67,7 @@ export interface ScanRecord {
   hipWidthCm: number;
   bodyHeightCm: number;
   symmetryScore: number; // 0-100, 0 if not computed
+  photoDataUrl: string; // JPEG data URL of captured frame, "" if not captured
 }
 
 export interface Measurements {

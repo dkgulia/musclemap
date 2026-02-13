@@ -18,11 +18,6 @@ export async function generateProgressReport(
       scans: scans.slice(0, 10).map((s) => ({
         timestamp: s.timestamp,
         poseId: s.poseId,
-        vTaperIndex: s.vTaperIndex,
-        shoulderIndex: s.shoulderIndex,
-        hipIndex: s.hipIndex,
-        shoulderWidthCm: s.shoulderWidthCm,
-        hipWidthCm: s.hipWidthCm,
         symmetryScore: s.symmetryScore,
       })),
       measurements: measurements.slice(0, 30).map((m) => ({

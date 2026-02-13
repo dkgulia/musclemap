@@ -4,12 +4,8 @@ import OpenAI from "openai";
 interface ScanData {
   timestamp: number;
   poseId: string;
-  vTaperIndex: number;
-  shoulderIndex: number;
-  hipIndex: number;
-  shoulderWidthCm: number;
-  hipWidthCm: number;
   symmetryScore: number;
+  photoCount?: number;
 }
 
 interface MeasurementData {
@@ -42,16 +38,20 @@ export async function POST(request: Request) {
   const body = (await request.json()) as ReportRequest;
   const { scans, measurements, heightCm } = body;
 
-  // Build context for the AI
-  const scanSummary = scans
-    .slice(0, 10)
+  // Send scans oldest-first so AI reads progression correctly
+  const chronologicalScans = [...scans].sort((a, b) => a.timestamp - b.timestamp);
+
+  // Build scan summary — focus on photo count and consistency, not skeleton ratios
+  const scanSummary = chronologicalScans
+    .slice(-10)
     .map((s) => {
       const date = new Date(s.timestamp).toLocaleDateString();
-      return `${date} ${s.poseId}: V-Taper=${s.vTaperIndex.toFixed(2)}, Shoulder=${s.shoulderIndex.toFixed(3)}, Symmetry=${s.symmetryScore}%${s.shoulderWidthCm > 0 ? `, ShoulderCm=${s.shoulderWidthCm}` : ""}`;
+      const sym = s.symmetryScore > 0 ? `, Symmetry=${s.symmetryScore}%` : "";
+      return `${date} ${s.poseId}${sym}`;
     })
     .join("\n");
 
-  // Group measurements by name with history
+  // Group measurements by name with history (oldest-first)
   const measMap = new Map<string, MeasurementData[]>();
   for (const m of measurements) {
     const arr = measMap.get(m.name) || [];
@@ -60,36 +60,48 @@ export async function POST(request: Request) {
   }
   const measSummary = Array.from(measMap.entries())
     .map(([name, entries]) => {
-      const sorted = entries.sort((a, b) => b.timestamp - a.timestamp);
-      const latest = sorted[0];
-      const prev = sorted.length > 1 ? sorted[1] : null;
-      const delta = prev ? (latest.value - prev.value).toFixed(1) : "first";
-      return `${name}: ${latest.value}${latest.unit} (change: ${delta})`;
+      const sorted = entries.sort((a, b) => a.timestamp - b.timestamp);
+      const latest = sorted[sorted.length - 1];
+      const oldest = sorted[0];
+      if (sorted.length > 1) {
+        const change = (latest.value - oldest.value).toFixed(1);
+        const sign = Number(change) >= 0 ? "+" : "";
+        return `${name}: ${oldest.value}${oldest.unit} → ${latest.value}${latest.unit} (${sign}${change} over ${sorted.length} entries)`;
+      }
+      return `${name}: ${latest.value}${latest.unit} (1 entry)`;
     })
     .join("\n");
 
-  const systemPrompt = `You are a bodybuilding coach analyzing a user's physique tracking data.
+  const totalPhotos = scans.length;
+  const poseTypes = [...new Set(scans.map((s) => s.poseId))].length;
+
+  const systemPrompt = `You are a bodybuilding coach analyzing a user's progress tracking data.
+
+This app captures progress PHOTOS in consistent poses (using a ghost overlay for repeatable framing).
+The user tracks their physique visually through photos and optionally logs tape measurements.
 
 Rules:
 - Keep response under 150 words
 - Use direct, motivational gym-bro language
-- Analyze trends (improving, declining, stable)
-- Compare left/right symmetry if data shows imbalance
-- Note the most impressive improvement
-- Give 2-3 specific actionable tips
-- If tape measurements exist, incorporate them
-- If no tape measurements, note that tracking tape measurements would help
-- Reference V-Taper grades: <1.2 Developing, 1.2-1.4 Average, 1.4-1.6 Good, 1.6-1.8 Great, >1.8 Elite
+- Focus primarily on TAPE MEASUREMENTS if available — these are real body measurements the user logged manually
+- If tape measurements show trends, analyze them (growing arms, shrinking waist, etc.)
+- If NO tape measurements exist, strongly encourage the user to start logging them ("Grab a tape measure and log your arms, chest, waist — that's where the real data is")
+- Comment on photo consistency and tracking habit (${totalPhotos} photos across ${poseTypes} pose type(s))
+- Symmetry scores are from pose analysis — only mention if notably imbalanced (<75%)
+- Give 2-3 specific actionable training or nutrition tips
+- Do NOT reference V-Taper, Shoulder Index, or Hip Index — these are not shown to the user
 - Do NOT use markdown formatting, just plain text with line breaks`;
 
   const userPrompt = `Analyze this lifter's progress:
 
 Height: ${heightCm ? `${heightCm}cm` : "not set"}
 
-POSE SCANS (newest first):
-${scanSummary || "No scans yet"}
+PROGRESS PHOTOS (oldest to newest):
+${scanSummary || "No photos yet"}
 
-TAPE MEASUREMENTS:
+Total: ${totalPhotos} progress photos
+
+TAPE MEASUREMENTS (oldest to newest):
 ${measSummary || "No tape measurements logged yet"}
 
 Give a brief progress report with actionable tips.`;

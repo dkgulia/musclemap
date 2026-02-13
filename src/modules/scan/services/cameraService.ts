@@ -1,6 +1,6 @@
 /**
  * Camera service: manages getUserMedia stream lifecycle.
- * Requests rear camera on mobile, any camera on desktop.
+ * Uses front camera for selfie-style posing.
  */
 
 export interface CameraConfig {
@@ -12,7 +12,7 @@ export interface CameraConfig {
 const DEFAULT_CONFIG: CameraConfig = {
   width: 720,
   height: 960,
-  facingMode: "environment",
+  facingMode: "user",
 };
 
 export async function startCamera(
