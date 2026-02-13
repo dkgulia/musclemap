@@ -6,6 +6,7 @@ import Card from "@/components/Card";
 import StreakCard from "@/modules/profile/components/StreakCard";
 import SettingsList from "@/modules/profile/components/SettingsList";
 import UpgradeCard from "@/modules/profile/components/UpgradeCard";
+import MeasurementsForm from "@/modules/measurements/components/MeasurementsForm";
 
 export default function ProfilePage() {
   const { mode, userHeightCm, setUserHeightCm } = useApp();
@@ -24,12 +25,11 @@ export default function ProfilePage() {
       <StreakCard />
 
       <Card>
-        <p className="text-sm text-text mb-1">Body Measurements</p>
+        <p className="text-sm text-text mb-1">Height</p>
         <p className="text-[11px] text-muted mb-3">
-          Enter your height for calibrated real-world measurements.
+          Used to calibrate camera-based measurements.
         </p>
         <div className="flex items-center gap-3">
-          <label className="text-xs text-text2 shrink-0">Height</label>
           <input
             type="number"
             inputMode="decimal"
@@ -47,6 +47,8 @@ export default function ProfilePage() {
           <span className="text-xs text-muted shrink-0">cm</span>
         </div>
       </Card>
+
+      <MeasurementsForm />
 
       <UpgradeCard />
 

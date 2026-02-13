@@ -5,10 +5,7 @@
  */
 
 import type { ScanRecord } from "../models/types";
-
-const DB_NAME = "musclemap";
-const DB_VERSION = 2;
-const STORE_NAME = "scans";
+import { openDB, SCANS_STORE } from "@/modules/shared/db";
 
 function normalizeScanRecord(raw: Record<string, unknown>): ScanRecord {
   const rec = raw as unknown as ScanRecord;
@@ -17,40 +14,15 @@ function normalizeScanRecord(raw: Record<string, unknown>): ScanRecord {
     shoulderWidthCm: rec.shoulderWidthCm ?? 0,
     hipWidthCm: rec.hipWidthCm ?? 0,
     bodyHeightCm: rec.bodyHeightCm ?? 0,
+    symmetryScore: rec.symmetryScore ?? 0,
   };
-}
-
-function openDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-
-    req.onupgradeneeded = (event) => {
-      const db = req.result;
-      const oldVersion = (event as IDBVersionChangeEvent).oldVersion;
-
-      if (oldVersion < 1) {
-        const store = db.createObjectStore(STORE_NAME, {
-          keyPath: "id",
-          autoIncrement: true,
-        });
-        store.createIndex("poseId", "poseId", { unique: false });
-        store.createIndex("timestamp", "timestamp", { unique: false });
-      }
-      // v1 → v2: No structural changes needed.
-      // New cm fields are just additional properties on value objects.
-      // Old records are normalized on read via normalizeScanRecord().
-    };
-
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
 }
 
 export async function addScan(record: Omit<ScanRecord, "id">): Promise<number> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    const store = tx.objectStore(STORE_NAME);
+    const tx = db.transaction(SCANS_STORE, "readwrite");
+    const store = tx.objectStore(SCANS_STORE);
     const req = store.add(record);
     req.onsuccess = () => resolve(req.result as number);
     req.onerror = () => reject(req.error);
@@ -63,8 +35,8 @@ export async function listScans(
 ): Promise<ScanRecord[]> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readonly");
-    const store = tx.objectStore(STORE_NAME);
+    const tx = db.transaction(SCANS_STORE, "readonly");
+    const store = tx.objectStore(SCANS_STORE);
     const index = store.index("timestamp");
     const req = index.openCursor(null, "prev"); // newest first
     const results: ScanRecord[] = [];
@@ -88,8 +60,8 @@ export async function listScans(
 export async function deleteScan(id: number): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    const store = tx.objectStore(STORE_NAME);
+    const tx = db.transaction(SCANS_STORE, "readwrite");
+    const store = tx.objectStore(SCANS_STORE);
     const req = store.delete(id);
     req.onsuccess = () => resolve();
     req.onerror = () => reject(req.error);
@@ -99,8 +71,8 @@ export async function deleteScan(id: number): Promise<void> {
 export async function clearAll(): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    const store = tx.objectStore(STORE_NAME);
+    const tx = db.transaction(SCANS_STORE, "readwrite");
+    const store = tx.objectStore(SCANS_STORE);
     const req = store.clear();
     req.onsuccess = () => resolve();
     req.onerror = () => reject(req.error);

@@ -263,9 +263,10 @@ export function computeMeasurements(
   }
 
   const bodyHeightPx = geo.scale;
-  const shoulderIndex = bodyHeightPx > 0 ? shoulderWidthPx / bodyHeightPx : 0;
-  const hipIndex = bodyHeightPx > 0 ? hipWidthPx / bodyHeightPx : 0;
-  const vTaperIndex = hipWidthPx > 0 ? shoulderWidthPx / hipWidthPx : 0;
+  // Pixel-based ratios as fallback
+  let shoulderIndex = bodyHeightPx > 0 ? shoulderWidthPx / bodyHeightPx : 0;
+  let hipIndex = bodyHeightPx > 0 ? hipWidthPx / bodyHeightPx : 0;
+  let vTaperIndex = hipWidthPx > 0 ? shoulderWidthPx / hipWidthPx : 0;
 
   // Compute world-coordinate measurements if available
   let worldM = {
@@ -275,6 +276,17 @@ export function computeMeasurements(
   if (worldLandmarks && worldLandmarks.length >= 33) {
     const wm = computeWorldMeasurements(worldLandmarks, userHeightCm ?? null);
     if (wm) worldM = wm;
+  }
+
+  // Override with world-based ratios when available (camera-independent)
+  if (worldM.shoulderWidthM > 0 && worldM.bodyHeightM > 0.1) {
+    shoulderIndex = worldM.shoulderWidthM / worldM.bodyHeightM;
+  }
+  if (worldM.hipWidthM > 0 && worldM.bodyHeightM > 0.1) {
+    hipIndex = worldM.hipWidthM / worldM.bodyHeightM;
+  }
+  if (worldM.shoulderWidthM > 0 && worldM.hipWidthM > 0) {
+    vTaperIndex = worldM.shoulderWidthM / worldM.hipWidthM;
   }
 
   return {
@@ -299,7 +311,7 @@ export function computeMeasurements(
  * - Partial body with some joints (error ~0.15) → score ~62
  * Lowered from 350 to be more forgiving with partial landmark sets.
  */
-const ALIGNMENT_K = 250;
+const ALIGNMENT_K = 120;
 
 export function computeAlignment(
   landmarks: Landmark[],
@@ -319,7 +331,7 @@ export function computeAlignment(
   for (const jointIdx of template.requiredLandmarks) {
     const lm = landmarks[jointIdx];
     const tgt = template.templateNormalized[jointIdx];
-    const w = template.weights[jointIdx] ?? 1;
+    const w = Math.min(template.weights[jointIdx] ?? 1, 1.0);
 
     if (!visible(lm) || !tgt) continue;
 
@@ -337,7 +349,7 @@ export function computeAlignment(
 
   // If fewer than 3 joints matched, return minimum score
   // (something is detected but not enough to compute alignment)
-  if (matchedCount < 3) return matchedCount > 0 ? 10 : 0;
+  if (matchedCount < 2) return matchedCount > 0 ? 10 : 0;
   if (totalWeight === 0) return 0;
 
   const avgError = totalError / totalWeight;
@@ -372,21 +384,21 @@ export function computeConfidence(
   const measurements = computeMeasurements(landmarks, videoW, videoH);
   if (measurements && measurements.bodyHeightPx > 0) {
     const ratio = measurements.bodyHeightPx / videoH;
-    if (ratio >= 0.55 && ratio <= 0.85) {
+    if (ratio >= 0.40 && ratio <= 0.90) {
       distanceScore = 20;
-    } else if (ratio < 0.55) {
-      distanceScore = clamp((ratio / 0.55) * 20, 0, 20);
+    } else if (ratio < 0.40) {
+      distanceScore = clamp((ratio / 0.40) * 20, 0, 20);
     } else {
-      distanceScore = clamp(((1 - ratio) / 0.15) * 20, 0, 20);
+      distanceScore = clamp(((1 - ratio) / 0.10) * 20, 0, 20);
     }
   } else if (measurements && measurements.shoulderWidthPx > 0) {
     // Fallback: use shoulder width relative to frame width
     // Ideal: shoulders take up 30-50% of frame width
     const ratio = measurements.shoulderWidthPx / videoW;
-    if (ratio >= 0.20 && ratio <= 0.50) {
-      distanceScore = 15; // slightly less than full-body check
+    if (ratio >= 0.15 && ratio <= 0.55) {
+      distanceScore = 18;
     } else {
-      distanceScore = clamp((ratio / 0.35) * 15, 0, 15);
+      distanceScore = clamp((ratio / 0.35) * 18, 0, 18);
     }
   }
 
@@ -438,6 +450,6 @@ export function getBodyVisibility(landmarks: Landmark[]): "full" | "upper" | "pa
 
 // ─── EMA Smoothing ──────────────────────────────────────────────
 
-export function ema(prev: number, curr: number, alpha: number = 0.2): number {
+export function ema(prev: number, curr: number, alpha: number = 0.12): number {
   return prev * (1 - alpha) + curr * alpha;
 }

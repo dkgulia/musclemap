@@ -3,15 +3,15 @@
 import Card from "@/components/Card";
 import type { ScanRecord } from "@/modules/scan/models/types";
 
-type MetricKey = "alignmentScore" | "shoulderIndex" | "hipIndex" | "vTaperIndex" | "shoulderWidthCm" | "hipWidthCm";
+type MetricKey = "vTaperIndex" | "shoulderIndex" | "hipIndex" | "shoulderWidthCm" | "hipWidthCm" | "symmetryScore";
 
 const METRIC_LABELS: Record<MetricKey, string> = {
-  alignmentScore: "Alignment",
+  vTaperIndex: "V-Taper",
   shoulderIndex: "Shoulder Index",
   hipIndex: "Hip Index",
-  vTaperIndex: "V-Taper",
   shoulderWidthCm: "Shoulder Width (cm)",
   hipWidthCm: "Hip Width (cm)",
+  symmetryScore: "Symmetry",
 };
 
 interface Props {
@@ -60,8 +60,8 @@ export default function TrendChart({ scans, metric, poseName }: Props) {
   const lastPt = points[points.length - 1];
 
   // Format display value
-  const displayVal = metric === "alignmentScore"
-    ? `${Math.round(last)}`
+  const displayVal = metric === "symmetryScore"
+    ? `${Math.round(last)}%`
     : metric.endsWith("Cm")
     ? last.toFixed(1)
     : last.toFixed(3);

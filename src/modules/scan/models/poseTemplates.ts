@@ -31,16 +31,16 @@ const defaultWeights: Record<number, number> = {
   [LM.NOSE]: 0.5,
   [LM.LEFT_SHOULDER]: 1.0,
   [LM.RIGHT_SHOULDER]: 1.0,
-  [LM.LEFT_ELBOW]: 1.2,
-  [LM.RIGHT_ELBOW]: 1.2,
+  [LM.LEFT_ELBOW]: 0.8,
+  [LM.RIGHT_ELBOW]: 0.8,
   [LM.LEFT_WRIST]: 1.0,
   [LM.RIGHT_WRIST]: 1.0,
   [LM.LEFT_HIP]: 0.8,
   [LM.RIGHT_HIP]: 0.8,
   [LM.LEFT_KNEE]: 0.5,
   [LM.RIGHT_KNEE]: 0.5,
-  [LM.LEFT_ANKLE]: 0.3,
-  [LM.RIGHT_ANKLE]: 0.3,
+  [LM.LEFT_ANKLE]: 0.5,
+  [LM.RIGHT_ANKLE]: 0.5,
 };
 
 export const POSE_TEMPLATES: PoseTemplate[] = [
@@ -49,7 +49,7 @@ export const POSE_TEMPLATES: PoseTemplate[] = [
     name: "Front Biceps",
     ghostAssetPath: "/poses/front-biceps.svg",
     requiredLandmarks: allBodyLandmarks,
-    weights: { ...defaultWeights, [LM.LEFT_ELBOW]: 1.5, [LM.RIGHT_ELBOW]: 1.5, [LM.LEFT_WRIST]: 1.3, [LM.RIGHT_WRIST]: 1.3 },
+    weights: defaultWeights,
     templateNormalized: {
       [LM.NOSE]: { x: 0, y: -0.47 },
       [LM.LEFT_SHOULDER]: { x: -0.13, y: -0.33 },
@@ -71,7 +71,7 @@ export const POSE_TEMPLATES: PoseTemplate[] = [
     name: "Back Lats",
     ghostAssetPath: "/poses/back-lats.svg",
     requiredLandmarks: allBodyLandmarks,
-    weights: { ...defaultWeights, [LM.LEFT_SHOULDER]: 1.5, [LM.RIGHT_SHOULDER]: 1.5 },
+    weights: defaultWeights,
     templateNormalized: {
       [LM.NOSE]: { x: 0, y: -0.47 },
       [LM.LEFT_SHOULDER]: { x: -0.15, y: -0.33 },
@@ -93,7 +93,7 @@ export const POSE_TEMPLATES: PoseTemplate[] = [
     name: "Side Glute",
     ghostAssetPath: "/poses/side-glute.svg",
     requiredLandmarks: allBodyLandmarks,
-    weights: { ...defaultWeights, [LM.LEFT_HIP]: 1.3, [LM.RIGHT_HIP]: 1.3, [LM.LEFT_KNEE]: 0.8, [LM.RIGHT_KNEE]: 0.8 },
+    weights: defaultWeights,
     templateNormalized: {
       [LM.NOSE]: { x: 0.02, y: -0.47 },
       [LM.LEFT_SHOULDER]: { x: -0.04, y: -0.33 },
@@ -115,7 +115,7 @@ export const POSE_TEMPLATES: PoseTemplate[] = [
     name: "Back Glute",
     ghostAssetPath: "/poses/back-glute.svg",
     requiredLandmarks: allBodyLandmarks,
-    weights: { ...defaultWeights, [LM.LEFT_HIP]: 1.4, [LM.RIGHT_HIP]: 1.4, [LM.LEFT_KNEE]: 0.9, [LM.RIGHT_KNEE]: 0.9 },
+    weights: defaultWeights,
     templateNormalized: {
       [LM.NOSE]: { x: 0, y: -0.47 },
       [LM.LEFT_SHOULDER]: { x: -0.13, y: -0.33 },

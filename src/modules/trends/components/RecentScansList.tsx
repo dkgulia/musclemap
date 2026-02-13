@@ -3,6 +3,7 @@
 import Card from "@/components/Card";
 import { deleteScan } from "@/modules/scan/storage/scanStore";
 import type { ScanRecord } from "@/modules/scan/models/types";
+import { getGrade, V_TAPER_GRADES } from "@/modules/scan/models/physiqueBenchmarks";
 
 const POSE_NAMES: Record<string, string> = {
   "front-biceps": "Front Biceps",
@@ -43,39 +44,44 @@ export default function RecentScansList({ scans, onDelete }: Props) {
   return (
     <div className="space-y-2">
       <h3 className="text-[11px] text-muted uppercase tracking-wider px-1">Recent Scans</h3>
-      {scans.map((scan) => (
-        <Card key={scan.id} className="flex items-center justify-between !py-3">
-          <div className="min-w-0 flex-1">
-            <p className="text-sm text-text">{POSE_NAMES[scan.poseId] || scan.poseId}</p>
-            <p className="text-[11px] text-muted mt-0.5">{formatDate(scan.timestamp)}</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="text-right">
-              <p className="text-lg font-semibold text-text">{scan.alignmentScore}</p>
-              <p className="text-[10px] text-muted">align</p>
+      {scans.map((scan) => {
+        const vtGrade = getGrade(scan.vTaperIndex, V_TAPER_GRADES);
+        return (
+          <Card key={scan.id} className="flex items-center justify-between !py-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm text-text">{POSE_NAMES[scan.poseId] || scan.poseId}</p>
+              <p className="text-[11px] text-muted mt-0.5">{formatDate(scan.timestamp)}</p>
             </div>
-            <div className="text-right">
-              <p className="text-sm font-mono text-text2">{scan.vTaperIndex.toFixed(2)}</p>
-              <p className="text-[10px] text-muted">v-taper</p>
-            </div>
-            {scan.shoulderWidthCm > 0 && (
+            <div className="flex items-center gap-3">
               <div className="text-right">
-                <p className="text-sm font-mono text-text2">{scan.shoulderWidthCm.toFixed(1)}</p>
-                <p className="text-[10px] text-muted">sh cm</p>
+                <p className="text-sm font-mono text-text">{scan.vTaperIndex.toFixed(2)}</p>
+                <p className={`text-[10px] font-medium ${vtGrade.color}`}>{vtGrade.label}</p>
               </div>
-            )}
-            <button
-              onClick={() => handleDelete(scan.id)}
-              className="p-1.5 rounded-lg hover:bg-text/[0.05] transition-colors cursor-pointer"
-              title="Delete scan"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14" />
-              </svg>
-            </button>
-          </div>
-        </Card>
-      ))}
+              {scan.shoulderWidthCm > 0 && (
+                <div className="text-right">
+                  <p className="text-sm font-mono text-text2">{scan.shoulderWidthCm.toFixed(1)}</p>
+                  <p className="text-[10px] text-muted">sh cm</p>
+                </div>
+              )}
+              {scan.symmetryScore > 0 && (
+                <div className="text-right">
+                  <p className="text-sm font-mono text-text2">{Math.round(scan.symmetryScore)}%</p>
+                  <p className="text-[10px] text-muted">sym</p>
+                </div>
+              )}
+              <button
+                onClick={() => handleDelete(scan.id)}
+                className="p-1.5 rounded-lg hover:bg-text/[0.05] transition-colors cursor-pointer"
+                title="Delete scan"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14" />
+                </svg>
+              </button>
+            </div>
+          </Card>
+        );
+      })}
     </div>
   );
 }

@@ -5,17 +5,19 @@ import { useApp } from "@/context/AppContext";
 import TemplateChips from "@/modules/scan/components/TemplateChips";
 import TrendChart from "@/modules/trends/components/TrendChartMock";
 import RecentScansList from "@/modules/trends/components/RecentScansList";
+import GrowthInsights from "@/modules/trends/components/GrowthInsights";
+import AIReport from "@/modules/trends/components/AIReport";
 import { listScans, clearAll } from "@/modules/scan/storage/scanStore";
 import type { ScanRecord } from "@/modules/scan/models/types";
 import Modal from "@/components/Modal";
 
-type MetricKey = "alignmentScore" | "shoulderIndex" | "hipIndex" | "vTaperIndex" | "shoulderWidthCm" | "hipWidthCm";
+type MetricKey = "vTaperIndex" | "shoulderIndex" | "hipIndex" | "shoulderWidthCm" | "hipWidthCm" | "symmetryScore";
 
 const BASE_METRICS: { key: MetricKey; label: string }[] = [
-  { key: "alignmentScore", label: "Alignment" },
-  { key: "shoulderIndex", label: "Shoulder" },
   { key: "vTaperIndex", label: "V-Taper" },
+  { key: "shoulderIndex", label: "Shoulder" },
   { key: "hipIndex", label: "Hip" },
+  { key: "symmetryScore", label: "Symmetry" },
 ];
 
 const CM_METRICS: { key: MetricKey; label: string }[] = [
@@ -31,11 +33,11 @@ const POSE_NAMES: Record<string, string> = {
 };
 
 export default function TrendsPage() {
-  const { mode, selectedTemplateId } = useApp();
+  const { mode, selectedTemplateId, userHeightCm } = useApp();
   const [scans, setScans] = useState<ScanRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [showClearModal, setShowClearModal] = useState(false);
-  const [selectedMetric, setSelectedMetric] = useState<MetricKey>("alignmentScore");
+  const [selectedMetric, setSelectedMetric] = useState<MetricKey>("vTaperIndex");
 
   const loadScans = useCallback(async () => {
     setLoading(true);
@@ -65,6 +67,11 @@ export default function TrendsPage() {
       <TemplateChips />
 
       <div className="px-5 flex flex-col gap-4">
+        {/* Growth insights summary */}
+        {!loading && (
+          <GrowthInsights scans={scans} poseId={selectedTemplateId} />
+        )}
+
         {/* Metric selector pills */}
         <div className="flex gap-1.5 overflow-x-auto hide-scrollbar">
           {metrics.map((m) => (
@@ -92,21 +99,8 @@ export default function TrendsPage() {
           <TrendChart scans={scans} metric={selectedMetric} poseName={poseName} />
         )}
 
-        {mode === "pro" && (
-          <div className="bg-surface rounded-2xl border border-border p-4">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm text-text">Weekly Report</h3>
-              <span className="text-[10px] text-muted bg-text/[0.05] px-2 py-0.5 rounded-md uppercase tracking-wider">
-                Pro
-              </span>
-            </div>
-            <p className="text-xs text-text2 mb-3 leading-relaxed">
-              Your weekly muscle development summary with detailed metrics and recommendations.
-            </p>
-            <button className="w-full py-2.5 rounded-xl bg-text/[0.04] border border-border text-xs text-text2 hover:text-text transition-colors cursor-pointer">
-              View Full Report
-            </button>
-          </div>
+        {!loading && (
+          <AIReport scans={scans} heightCm={userHeightCm} />
         )}
 
         {/* Recent scans list */}

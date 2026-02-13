@@ -66,6 +66,7 @@ export interface ScanRecord {
   shoulderWidthCm: number;
   hipWidthCm: number;
   bodyHeightCm: number;
+  symmetryScore: number; // 0-100, 0 if not computed
 }
 
 export interface Measurements {

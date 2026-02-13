@@ -20,11 +20,20 @@ import {
 } from "@/modules/scan/services/scoringService";
 import { getTemplate } from "@/modules/scan/models/poseTemplates";
 import { generateMockLandmarks } from "@/modules/scan/services/mockLandmarks";
-import { addScan } from "@/modules/scan/storage/scanStore";
-import type { Landmark, WorldLandmark, ScoreBreakdown, SymmetryData } from "@/modules/scan/models/types";
+import { addScan, listScans } from "@/modules/scan/storage/scanStore";
+import type { Landmark, WorldLandmark, ScoreBreakdown, SymmetryData, ScanRecord } from "@/modules/scan/models/types";
+import ScanInsight from "@/modules/trends/components/ScanInsight";
 
 const POSE_DETECT_INTERVAL = 80; // ~12fps
-const READY_HOLD_MS = 1000;
+const READY_HOLD_MS = 1500;
+const CAPTURE_BUFFER_SIZE = 25; // ~2 seconds of samples
+
+function median(arr: number[]): number {
+  if (arr.length === 0) return 0;
+  const sorted = [...arr].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
 
 export default function ScanPage() {
   return (
@@ -53,6 +62,10 @@ function ScanPageInner() {
   const [justLogged, setJustLogged] = useState(false);
   const [canRescan, setCanRescan] = useState(false);
   const [symmetryData, setSymmetryData] = useState<SymmetryData | null>(null);
+  const [capturedData, setCapturedData] = useState<{
+    vTaper: number; shoulderIdx: number; symmetryScore: number | null; shoulderCm: number;
+  } | null>(null);
+  const [previousScan, setPreviousScan] = useState<ScanRecord | null>(null);
 
   const smoothedAlignment = useRef(0);
   const smoothedConfidence = useRef(0);
@@ -71,6 +84,7 @@ function ScanPageInner() {
     poseMatch: 0,
   });
   const latestMeasurements = useRef<ReturnType<typeof computeMeasurements>>(null);
+  const captureBuffer = useRef<{ si: number; hi: number; vt: number; swm: number; hwm: number; bhm: number }[]>([]);
   const frameCount = useRef(0);
   const poseIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -115,6 +129,7 @@ function ScanPageInner() {
     smoothedHipWM.current = 0;
     smoothedBodyHM.current = 0;
     hasCapturedThisSession.current = false;
+    captureBuffer.current = [];
     setCanRescan(false);
   }, [selectedTemplateId]);
 
@@ -199,6 +214,19 @@ function ScanPageInner() {
       smoothedShoulderWM.current = ema(smoothedShoulderWM.current, m.shoulderWidthM);
       smoothedHipWM.current = ema(smoothedHipWM.current, m.hipWidthM);
       smoothedBodyHM.current = ema(smoothedBodyHM.current, m.bodyHeightM);
+
+      // Push to capture buffer for median-based capture
+      captureBuffer.current.push({
+        si: smoothedShoulderIdx.current,
+        hi: smoothedHipIdx.current,
+        vt: smoothedVTaper.current,
+        swm: smoothedShoulderWM.current,
+        hwm: smoothedHipWM.current,
+        bhm: smoothedBodyHM.current,
+      });
+      if (captureBuffer.current.length > CAPTURE_BUFFER_SIZE) {
+        captureBuffer.current.shift();
+      }
     }
 
     // Symmetry analysis from world landmarks
@@ -208,9 +236,9 @@ function ScanPageInner() {
       setSymmetryData(null);
     }
 
-    // Ready check
+    // Ready check (relaxed thresholds for easier capture)
     const nowReady =
-      smoothedAlignment.current >= 80 && smoothedConfidence.current >= 70;
+      smoothedAlignment.current >= 60 && smoothedConfidence.current >= 50;
 
     if (nowReady) {
       if (!readySince.current) readySince.current = Date.now();
@@ -243,18 +271,26 @@ function ScanPageInner() {
     if (!template || !latestMeasurements.current) return;
     if (justLogged) return; // prevent double-fire
 
-    // Use smoothed measurement values for stable results
+    const buf = captureBuffer.current;
     const m = latestMeasurements.current;
 
-    // Compute calibrated cm from smoothed world measurements
+    // Use median of buffer for stable values (falls back to current smoothed if buffer too small)
+    const medSI = buf.length >= 5 ? median(buf.map(b => b.si)) : smoothedShoulderIdx.current;
+    const medHI = buf.length >= 5 ? median(buf.map(b => b.hi)) : smoothedHipIdx.current;
+    const medVT = buf.length >= 5 ? median(buf.map(b => b.vt)) : smoothedVTaper.current;
+    const medSWM = buf.length >= 5 ? median(buf.map(b => b.swm)) : smoothedShoulderWM.current;
+    const medHWM = buf.length >= 5 ? median(buf.map(b => b.hwm)) : smoothedHipWM.current;
+    const medBHM = buf.length >= 5 ? median(buf.map(b => b.bhm)) : smoothedBodyHM.current;
+
+    // Compute calibrated cm from median world measurements
     let shoulderWidthCm = 0;
     let hipWidthCm = 0;
     let bodyHeightCm = 0;
-    if (userHeightCm && smoothedBodyHM.current > 0.1) {
-      const factor = (userHeightCm / 100) / smoothedBodyHM.current;
-      shoulderWidthCm = smoothedShoulderWM.current * factor * 100;
-      hipWidthCm = smoothedHipWM.current * factor * 100;
-      bodyHeightCm = smoothedBodyHM.current * factor * 100;
+    if (userHeightCm && medBHM > 0.1) {
+      const factor = (userHeightCm / 100) / medBHM;
+      shoulderWidthCm = medSWM * factor * 100;
+      hipWidthCm = medHWM * factor * 100;
+      bodyHeightCm = medBHM * factor * 100;
     }
 
     await addScan({
@@ -262,24 +298,38 @@ function ScanPageInner() {
       poseId: selectedTemplateId,
       alignmentScore: Math.round(smoothedAlignment.current),
       confidenceScore: Math.round(smoothedConfidence.current),
-      shoulderIndex: Math.round(smoothedShoulderIdx.current * 1000) / 1000,
-      hipIndex: Math.round(smoothedHipIdx.current * 1000) / 1000,
-      vTaperIndex: Math.round(smoothedVTaper.current * 1000) / 1000,
+      shoulderIndex: Math.round(medSI * 1000) / 1000,
+      hipIndex: Math.round(medHI * 1000) / 1000,
+      vTaperIndex: Math.round(medVT * 1000) / 1000,
       shoulderWidthPx: Math.round(m.shoulderWidthPx),
       hipWidthPx: Math.round(m.hipWidthPx),
       bodyHeightPx: Math.round(m.bodyHeightPx),
       shoulderWidthCm: Math.round(shoulderWidthCm * 10) / 10,
       hipWidthCm: Math.round(hipWidthCm * 10) / 10,
       bodyHeightCm: Math.round(bodyHeightCm * 10) / 10,
+      symmetryScore: Math.round(symmetryData?.overallScore ?? 0),
     });
+
+    // Store captured values for ScanInsight display
+    setCapturedData({
+      vTaper: Math.round(medVT * 1000) / 1000,
+      shoulderIdx: Math.round(medSI * 1000) / 1000,
+      symmetryScore: symmetryData ? Math.round(symmetryData.overallScore) : null,
+      shoulderCm: Math.round(shoulderWidthCm * 10) / 10,
+    });
+
+    // Fetch previous scan for delta comparison (the one before current)
+    const recentScans = await listScans(selectedTemplateId, 2);
+    // recentScans[0] is the one we just added, [1] is the previous
+    setPreviousScan(recentScans.length >= 2 ? recentScans[1] : null);
 
     hasCapturedThisSession.current = true;
     setJustLogged(true);
     setTimeout(() => {
       setJustLogged(false);
       setCanRescan(true);
-    }, 3000);
-  }, [selectedTemplateId, justLogged, userHeightCm]);
+    }, 5000); // Show insight for 5 seconds instead of 3
+  }, [selectedTemplateId, justLogged, userHeightCm, symmetryData]);
 
   // Auto-capture: fire ONCE when isReady first becomes true, then stop
   const prevReady = useRef(false);
@@ -339,7 +389,7 @@ function ScanPageInner() {
             </div>
             <div>
               <p className="text-[11px] font-medium text-white/90">
-                {justLogged ? "Captured!" : isReady ? "Ready" : "Aligning"}
+                {justLogged ? "Captured!" : isReady ? "Ready!" : displayAlignment >= 45 ? `Almost ${displayAlignment}%` : `Aligning ${displayAlignment}%`}
               </p>
               <p className="text-[9px] text-white/50">
                 Conf {displayConfidence}%
@@ -357,14 +407,16 @@ function ScanPageInner() {
         </div>
       </div>
 
-      {/* Tip / toast / rescan */}
-      {justLogged ? (
-        <div className="mx-5 px-4 py-2.5 bg-accent/10 border border-accent/20 rounded-xl flex items-center gap-2.5">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
-            <path d="M20 6L9 17l-5-5" />
-          </svg>
-          <span className="text-[11px] text-accent font-medium">Scan logged</span>
-        </div>
+      {/* Tip / toast / rescan / manual capture */}
+      {justLogged && capturedData ? (
+        <ScanInsight
+          poseId={selectedTemplateId}
+          vTaper={capturedData.vTaper}
+          shoulderIdx={capturedData.shoulderIdx}
+          symmetryScore={capturedData.symmetryScore}
+          shoulderCm={capturedData.shoulderCm}
+          previousScan={previousScan}
+        />
       ) : canRescan ? (
         <div className="mx-5 flex items-center gap-2">
           <button
@@ -376,7 +428,19 @@ function ScanPageInner() {
           <p className="text-[10px] text-muted shrink-0">or switch pose above</p>
         </div>
       ) : (
-        <TipBanner tip={tip} />
+        <>
+          <TipBanner tip={tip} />
+          {bodyVis !== "none" && !justLogged && !canRescan && landmarks && (
+            <div className="mx-5">
+              <button
+                onClick={handleCapture}
+                className="w-full py-3 rounded-xl bg-accent text-accent-fg text-sm font-medium transition-colors cursor-pointer"
+              >
+                Capture Now
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {mode === "pro" && (
