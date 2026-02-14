@@ -38,9 +38,14 @@ export default function TrendsPage() {
       <TemplateChips />
 
       <div className="px-5 flex flex-col gap-4">
-        {/* Growth insights summary */}
+        {/* Growth insights summary — based on check-in scans only */}
         {!loading && (
-          <GrowthInsights scans={scans} poseId={selectedTemplateId} />
+          <>
+            <GrowthInsights scans={scans.filter(s => s.scanType === "CHECKIN")} poseId={selectedTemplateId} />
+            {scans.some(s => s.scanType === "CHECKIN") && (
+              <p className="text-[10px] text-muted -mt-2 px-1">Based on check-in scans only</p>
+            )}
+          </>
         )}
 
         {/* Photo grid */}

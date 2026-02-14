@@ -3,13 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { listScans } from "@/modules/scan/storage/scanStore";
 import type { ScanRecord } from "@/modules/scan/models/types";
-
-const POSE_NAMES: Record<string, string> = {
-  "front-biceps": "Front Biceps",
-  "back-lats": "Back Lats",
-  "side-glute": "Side Glute",
-  "back-glute": "Back Glute",
-};
+import { POSE_NAMES } from "@/modules/scan/models/poseNames";
 
 function formatDate(ts: number): string {
   const d = new Date(ts);
@@ -18,7 +12,8 @@ function formatDate(ts: number): string {
 
 function scanLabel(scan: ScanRecord): string {
   const pose = POSE_NAMES[scan.poseId] || scan.poseId;
-  return `${pose} — ${formatDate(scan.timestamp)}`;
+  const badge = scan.scanType === "CHECKIN" ? " [Check-in]" : "";
+  return `${pose} — ${formatDate(scan.timestamp)}${badge}`;
 }
 
 function PhotoSlider({ scanA, scanB }: { scanA: ScanRecord; scanB: ScanRecord }) {
@@ -204,11 +199,13 @@ export default function ComparePage() {
     const data = await listScans(undefined, 100);
     setScans(data);
 
-    // Auto-select scans that have photos: B = most recent with photo, A = second most recent with photo
+    // Auto-select: prefer CHECKIN scans with photos, fallback to any with photos
+    const checkins = data.filter((s) => s.scanType === "CHECKIN" && s.photoDataUrl);
     const withPhotos = data.filter((s) => s.photoDataUrl);
-    if (withPhotos.length >= 2) {
-      setScanBId(withPhotos[0].id ?? null);
-      setScanAId(withPhotos[1].id ?? null);
+    const preferred = checkins.length >= 2 ? checkins : withPhotos;
+    if (preferred.length >= 2) {
+      setScanBId(preferred[0].id ?? null);
+      setScanAId(preferred[1].id ?? null);
     } else if (data.length >= 2) {
       setScanBId(data[0].id ?? null);
       setScanAId(data[1].id ?? null);
@@ -299,11 +296,32 @@ export default function ComparePage() {
       {/* Photo comparison slider */}
       {scanA && scanB && <PhotoSlider scanA={scanA} scanB={scanB} />}
 
-      {/* Region delta card (only if both scans have slice data) */}
-      {scanA && scanB && scanA.isPhotoScan && scanB.isPhotoScan &&
-       scanA.hipBandWidthIndex != null && scanB.hipBandWidthIndex != null && (
-        <RegionDeltaCard scanA={scanA} scanB={scanB} />
-      )}
+      {/* Region delta card — gated by quality, consistency, and time */}
+      {scanA && scanB && scanA.hipBandWidthIndex != null && scanB.hipBandWidthIndex != null && (() => {
+        const aConf = scanA.confidenceScore ?? 0;
+        const bConf = scanB.confidenceScore ?? 0;
+        const aCons = scanA.consistencyScore ?? 100;
+        const bCons = scanB.consistencyScore ?? 100;
+        const timeGapDays = Math.abs(scanB.timestamp - scanA.timestamp) / 86400000;
+        const comparable = Math.min(aCons, bCons);
+        const quality = Math.min(aConf, bConf);
+        const showDeltas = comparable >= 70 && quality >= 65 && timeGapDays >= 7;
+
+        if (showDeltas) {
+          return <RegionDeltaCard scanA={scanA} scanB={scanB} />;
+        }
+        // Show explanation why deltas are hidden
+        const reasons: string[] = [];
+        if (comparable < 70) reasons.push("poses not consistent enough");
+        if (quality < 65) reasons.push("photo quality too low");
+        if (timeGapDays < 7) reasons.push(`only ${Math.floor(timeGapDays)}d apart (need 7d+)`);
+        return (
+          <div className="bg-surface rounded-2xl border border-border p-4 text-center">
+            <p className="text-xs text-text2 mb-1">Region deltas hidden</p>
+            <p className="text-[10px] text-muted">{reasons.join(", ")}</p>
+          </div>
+        );
+      })()}
 
       {/* Time gap info */}
       {scanA && scanB && (

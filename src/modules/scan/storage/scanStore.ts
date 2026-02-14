@@ -27,6 +27,10 @@ function normalizeScanRecord(raw: Record<string, unknown>): ScanRecord {
     segmentationQuality: rec.segmentationQuality,
     consistencyScore: rec.consistencyScore,
     photoBlobKey: rec.photoBlobKey,
+    // Check-in system fields
+    scanType: rec.scanType ?? "GALLERY",
+    avgBrightness: rec.avgBrightness,
+    stanceWidthPx: rec.stanceWidthPx,
   };
 }
 
@@ -94,6 +98,25 @@ export async function clearAll(): Promise<void> {
 export async function countScans(poseId?: string): Promise<number> {
   const scans = await listScans(poseId, 9999);
   return scans.length;
+}
+
+// ─── Check-in Queries ───────────────────────────────────────────
+
+/** List only CHECKIN scans for a given poseId, newest first */
+export async function listCheckinScans(
+  poseId: string,
+  limit: number = 50
+): Promise<ScanRecord[]> {
+  const all = await listScans(poseId, limit * 3);
+  return all.filter((s) => s.scanType === "CHECKIN").slice(0, limit);
+}
+
+/** Get the most recent CHECKIN scan for a poseId */
+export async function getLastCheckin(
+  poseId: string
+): Promise<ScanRecord | null> {
+  const checkins = await listCheckinScans(poseId, 1);
+  return checkins[0] ?? null;
 }
 
 // ─── Photo Blob Storage ─────────────────────────────────────────

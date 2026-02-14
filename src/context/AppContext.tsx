@@ -11,6 +11,8 @@ export interface Template {
 }
 
 export const TEMPLATES: Template[] = [
+  { id: "front-checkin", label: "Front Check-in", pro: false },
+  { id: "back-checkin", label: "Back Check-in", pro: false },
   { id: "front-biceps", label: "Front Biceps", pro: false },
   { id: "back-lats", label: "Back Lats", pro: false },
   { id: "side-glute", label: "Side Glute", pro: true },
@@ -35,7 +37,7 @@ const AppContext = createContext<AppState | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<Mode>("simple");
-  const [selectedTemplateId, setSelectedTemplateId] = useState("front-biceps");
+  const [selectedTemplateId, setSelectedTemplateId] = useState("front-checkin");
   const [alignmentScore, setAlignmentScore] = useState(72);
   const [userHeightCm, setUserHeightCmState] = useState<number | null>(() => {
     if (typeof window === "undefined") return null;

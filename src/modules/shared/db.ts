@@ -5,7 +5,7 @@
  */
 
 const DB_NAME = "musclemap";
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 export const SCANS_STORE = "scans";
 export const MEASUREMENTS_STORE = "measurements";
@@ -51,6 +51,13 @@ export function openDB(): Promise<IDBDatabase> {
             keyPath: "id",
             autoIncrement: true,
           });
+        }
+      }
+
+      if (oldVersion < 5) {
+        const scanObjStore = req.transaction!.objectStore(SCANS_STORE);
+        if (!scanObjStore.indexNames.contains("scanType")) {
+          scanObjStore.createIndex("scanType", "scanType", { unique: false });
         }
       }
     };

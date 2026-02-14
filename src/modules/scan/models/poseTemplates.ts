@@ -27,6 +27,40 @@ const allBodyLandmarks = [
   LM.RIGHT_ANKLE,
 ];
 
+/** Check-in template weights: heavier on hips/knees/ankles for lower-body focus */
+const checkinWeights: Record<number, number> = {
+  [LM.NOSE]: 0.3,
+  [LM.LEFT_SHOULDER]: 1.0,
+  [LM.RIGHT_SHOULDER]: 1.0,
+  [LM.LEFT_ELBOW]: 0.4,
+  [LM.RIGHT_ELBOW]: 0.4,
+  [LM.LEFT_WRIST]: 0.3,
+  [LM.RIGHT_WRIST]: 0.3,
+  [LM.LEFT_HIP]: 1.0,
+  [LM.RIGHT_HIP]: 1.0,
+  [LM.LEFT_KNEE]: 0.8,
+  [LM.RIGHT_KNEE]: 0.8,
+  [LM.LEFT_ANKLE]: 0.7,
+  [LM.RIGHT_ANKLE]: 0.7,
+};
+
+/** Relaxed standing pose — arms at sides, facing forward */
+const checkinNormalized: Record<number, { x: number; y: number }> = {
+  [LM.NOSE]: { x: 0, y: -0.47 },
+  [LM.LEFT_SHOULDER]: { x: -0.12, y: -0.33 },
+  [LM.RIGHT_SHOULDER]: { x: 0.12, y: -0.33 },
+  [LM.LEFT_ELBOW]: { x: -0.13, y: -0.18 },
+  [LM.RIGHT_ELBOW]: { x: 0.13, y: -0.18 },
+  [LM.LEFT_WRIST]: { x: -0.12, y: -0.02 },
+  [LM.RIGHT_WRIST]: { x: 0.12, y: -0.02 },
+  [LM.LEFT_HIP]: { x: -0.08, y: 0.0 },
+  [LM.RIGHT_HIP]: { x: 0.08, y: 0.0 },
+  [LM.LEFT_KNEE]: { x: -0.08, y: 0.22 },
+  [LM.RIGHT_KNEE]: { x: 0.08, y: 0.22 },
+  [LM.LEFT_ANKLE]: { x: -0.08, y: 0.45 },
+  [LM.RIGHT_ANKLE]: { x: 0.08, y: 0.45 },
+};
+
 const defaultWeights: Record<number, number> = {
   [LM.NOSE]: 0.5,
   [LM.LEFT_SHOULDER]: 1.0,
@@ -44,6 +78,22 @@ const defaultWeights: Record<number, number> = {
 };
 
 export const POSE_TEMPLATES: PoseTemplate[] = [
+  {
+    id: "front-checkin",
+    name: "Front Check-in",
+    ghostAssetPath: "/poses/front-biceps.svg", // reuse until dedicated SVG
+    requiredLandmarks: allBodyLandmarks,
+    weights: checkinWeights,
+    templateNormalized: checkinNormalized,
+  },
+  {
+    id: "back-checkin",
+    name: "Back Check-in",
+    ghostAssetPath: "/poses/back-lats.svg", // reuse until dedicated SVG
+    requiredLandmarks: allBodyLandmarks,
+    weights: checkinWeights,
+    templateNormalized: checkinNormalized,
+  },
   {
     id: "front-biceps",
     name: "Front Biceps",
@@ -136,4 +186,10 @@ export const POSE_TEMPLATES: PoseTemplate[] = [
 
 export function getTemplate(id: string): PoseTemplate | undefined {
   return POSE_TEMPLATES.find((t) => t.id === id);
+}
+
+export const CHECKIN_TEMPLATE_IDS = ["front-checkin", "back-checkin"] as const;
+
+export function isCheckinTemplate(id: string): boolean {
+  return (CHECKIN_TEMPLATE_IDS as readonly string[]).includes(id);
 }

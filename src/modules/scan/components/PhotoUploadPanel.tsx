@@ -1,22 +1,21 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { useApp } from "@/context/AppContext";
 import { analyzePhoto, type PhotoScanResult } from "../services/photoScanService";
 import { addScan, savePhotoBlob, listScans } from "../storage/scanStore";
-import type { ScanRecord } from "../models/types";
+import { isCheckinTemplate } from "../models/poseTemplates";
+import { POSE_NAMES } from "../models/poseNames";
+import { getConfidenceLabel } from "../models/types";
+import type { ScanRecord, ScanType } from "../models/types";
+import CheckinGateCard from "./CheckinGateCard";
+import PhotoDebugOverlay from "./PhotoDebugOverlay";
 
-const POSE_NAMES: Record<string, string> = {
-  "front-biceps": "Front Biceps",
-  "back-lats": "Back Lats",
-  "side-glute": "Side Glute",
-  "back-glute": "Back Glute",
-};
-
-function confidenceLabel(score: number): { label: string; color: string } {
-  if (score >= 75) return { label: "High", color: "text-emerald-400" };
-  if (score >= 50) return { label: "Medium", color: "text-amber-400" };
-  return { label: "Low", color: "text-red-400" };
+function confidenceColor(score: number): string {
+  if (score >= 75) return "text-emerald-400";
+  if (score >= 50) return "text-amber-400";
+  return "text-red-400";
 }
 
 function fmtIdx(v: number): string {
@@ -25,6 +24,8 @@ function fmtIdx(v: number): string {
 
 export default function PhotoUploadPanel() {
   const { selectedTemplateId, userHeightCm } = useApp();
+  const searchParams = useSearchParams();
+  const debug = searchParams.get("debug") === "1";
 
   const fileRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -35,7 +36,11 @@ export default function PhotoUploadPanel() {
   const [error, setError] = useState<string | null>(null);
   const [savePhoto, setSavePhoto] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [savedType, setSavedType] = useState<ScanType | null>(null);
   const [previousScan, setPreviousScan] = useState<ScanRecord | null>(null);
+
+  const isCheckin = isCheckinTemplate(selectedTemplateId);
+  const gatesPassed = result?.checkinGates?.allPassed ?? false;
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0] ?? null;
@@ -43,6 +48,7 @@ export default function PhotoUploadPanel() {
     setResult(null);
     setError(null);
     setSaved(false);
+    setSavedType(null);
     if (f) {
       const url = URL.createObjectURL(f);
       setPreview(url);
@@ -57,9 +63,11 @@ export default function PhotoUploadPanel() {
     setError(null);
     setResult(null);
     setSaved(false);
+    setSavedType(null);
 
     try {
-      const res = await analyzePhoto(file, selectedTemplateId, { mirrored });
+      const scanType: ScanType | undefined = isCheckinTemplate(selectedTemplateId) ? "CHECKIN" : undefined;
+      const res = await analyzePhoto(file, selectedTemplateId, { mirrored, scanType });
       setResult(res);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Analysis failed. Try a different photo.");
@@ -68,7 +76,7 @@ export default function PhotoUploadPanel() {
     }
   }, [file, selectedTemplateId, mirrored]);
 
-  const handleSave = useCallback(async () => {
+  const doSave = useCallback(async (scanType: ScanType) => {
     if (!result || saved) return;
 
     const m = result.measurements;
@@ -97,7 +105,7 @@ export default function PhotoUploadPanel() {
       photoBlobKey = await savePhotoBlob(blob);
     }
 
-    // Generate a small data URL for quick display (used by ScanInsight / compare)
+    // Generate a small data URL for quick display
     const photoDataUrl = result.normalizedCanvas.toDataURL("image/jpeg", 0.6);
 
     await addScan({
@@ -121,12 +129,15 @@ export default function PhotoUploadPanel() {
       upperThighWidthIndex: result.sliceIndices?.upperThighWidthIndex,
       midThighWidthIndex: result.sliceIndices?.midThighWidthIndex,
       calfWidthIndex: result.sliceIndices?.calfWidthIndex,
-      stanceWidthIndex: m.bodyHeightPx > 0 ? undefined : undefined,
-      hipTiltDeg: undefined,
-      shoulderTiltDeg: undefined,
+      stanceWidthIndex: m.bodyHeightPx > 0 ? result.stanceWidthPx / m.bodyHeightPx : undefined,
+      hipTiltDeg: result.hipTiltDeg,
+      shoulderTiltDeg: result.shoulderTiltDeg,
       segmentationQuality: result.segmentationQuality,
       consistencyScore: result.consistencyScore,
       photoBlobKey,
+      scanType,
+      avgBrightness: result.avgBrightness,
+      stanceWidthPx: result.stanceWidthPx,
     });
 
     // Fetch previous scan for context
@@ -134,6 +145,7 @@ export default function PhotoUploadPanel() {
     setPreviousScan(recent.length >= 2 ? recent[1] : null);
 
     setSaved(true);
+    setSavedType(scanType);
   }, [result, saved, savePhoto, selectedTemplateId, userHeightCm]);
 
   const handleReset = useCallback(() => {
@@ -142,6 +154,7 @@ export default function PhotoUploadPanel() {
     setResult(null);
     setError(null);
     setSaved(false);
+    setSavedType(null);
     if (fileRef.current) fileRef.current.value = "";
   }, []);
 
@@ -253,10 +266,23 @@ export default function PhotoUploadPanel() {
                 className="w-full h-full object-cover"
               />
 
+              {/* Debug overlay */}
+              {debug && result.binaryMask && (
+                <PhotoDebugOverlay
+                  binaryMask={result.binaryMask}
+                  maskWidth={result.maskWidth}
+                  maskHeight={result.maskHeight}
+                  canvasWidth={result.normalizedCanvas.width}
+                  canvasHeight={result.normalizedCanvas.height}
+                  sliceYPositions={result.sliceYPositions}
+                  sliceIndices={result.sliceIndices}
+                />
+              )}
+
               {/* Confidence badge */}
               <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm rounded-lg px-2.5 py-1.5">
-                <span className={`text-[11px] font-medium ${confidenceLabel(result.confidenceScore).color}`}>
-                  {Math.round(result.confidenceScore)} — {confidenceLabel(result.confidenceScore).label}
+                <span className={`text-[11px] font-medium ${confidenceColor(result.confidenceScore)}`}>
+                  {Math.round(result.confidenceScore)} — {getConfidenceLabel(result.confidenceScore)}
                 </span>
               </div>
 
@@ -280,6 +306,13 @@ export default function PhotoUploadPanel() {
                   {w}
                 </p>
               ))}
+            </div>
+          )}
+
+          {/* Check-in gate card */}
+          {isCheckin && result.checkinGates && (
+            <div className="mx-5">
+              <CheckinGateCard gates={result.checkinGates} />
             </div>
           )}
 
@@ -342,6 +375,16 @@ export default function PhotoUploadPanel() {
             </div>
           </div>
 
+          {/* Debug: raw gate JSON */}
+          {debug && result.checkinGates && (
+            <div className="mx-5 bg-surface border border-border rounded-2xl p-4">
+              <h3 className="text-xs font-medium text-text mb-2">Gate Debug</h3>
+              <pre className="text-[9px] text-muted overflow-auto max-h-40">
+                {JSON.stringify(result.checkinGates, null, 2)}
+              </pre>
+            </div>
+          )}
+
           {/* Save controls */}
           {!saved ? (
             <div className="mx-5 flex flex-col gap-2">
@@ -355,12 +398,44 @@ export default function PhotoUploadPanel() {
                 <span className="text-xs text-text2">Save photo locally</span>
               </label>
 
-              <button
-                onClick={handleSave}
-                className="w-full py-3 rounded-xl bg-accent text-accent-fg text-sm font-medium transition-colors cursor-pointer"
-              >
-                Save Check-in
-              </button>
+              {isCheckin && gatesPassed ? (
+                <>
+                  <button
+                    onClick={() => doSave("CHECKIN")}
+                    className="w-full py-3 rounded-xl bg-emerald-600 text-white text-sm font-medium transition-colors cursor-pointer"
+                  >
+                    Save Check-in
+                  </button>
+                  <button
+                    onClick={() => doSave("GALLERY")}
+                    className="w-full py-2 rounded-xl bg-surface border border-border text-xs text-text2 cursor-pointer"
+                  >
+                    Save as Gallery Instead
+                  </button>
+                </>
+              ) : isCheckin && !gatesPassed ? (
+                <>
+                  <button
+                    disabled
+                    className="w-full py-3 rounded-xl bg-surface border border-border text-sm font-medium text-muted cursor-not-allowed"
+                  >
+                    Save Check-in (gates failed)
+                  </button>
+                  <button
+                    onClick={() => doSave("GALLERY")}
+                    className="w-full py-3 rounded-xl bg-accent text-accent-fg text-sm font-medium transition-colors cursor-pointer"
+                  >
+                    Save as Gallery Photo
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => doSave("GALLERY")}
+                  className="w-full py-3 rounded-xl bg-accent text-accent-fg text-sm font-medium transition-colors cursor-pointer"
+                >
+                  Save Scan
+                </button>
+              )}
 
               <button
                 onClick={handleReset}
@@ -376,7 +451,7 @@ export default function PhotoUploadPanel() {
                   <path d="M20 6L9 17l-5-5" />
                 </svg>
                 <span className="text-sm font-medium text-text">
-                  {poseName} saved
+                  {poseName} saved{savedType === "CHECKIN" ? " as Check-in" : " as Gallery"}
                 </span>
               </div>
               {previousScan && (

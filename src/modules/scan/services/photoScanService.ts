@@ -12,6 +12,8 @@ import type {
   SliceIndices,
   PhotoConfidenceBreakdown,
   ConsistencyDetails,
+  ScanType,
+  CheckinGateResult,
 } from "../models/types";
 import { LM } from "../models/types";
 import { getTemplate } from "../models/poseTemplates";
@@ -36,12 +38,14 @@ import {
   computeBodySliceIndices,
   type MaskData,
 } from "./segmentationService";
-import { listScans } from "../storage/scanStore";
+import { listScans, getLastCheckin } from "../storage/scanStore";
+import { runCheckinGates } from "./checkinGatingService";
 
 // ─── Public types ───────────────────────────────────────────────
 
 export interface PhotoScanOptions {
   mirrored?: boolean; // default false for uploaded photos
+  scanType?: ScanType; // default "GALLERY"
 }
 
 export interface PhotoScanResult {
@@ -62,6 +66,12 @@ export interface PhotoScanResult {
   consistencyPasses: boolean;
   consistencyDetails: ConsistencyDetails;
   avgBrightness: number;
+
+  stanceWidthPx: number;
+  hipTiltDeg: number;
+  shoulderTiltDeg: number;
+
+  checkinGates: CheckinGateResult | null;
 
   normalizedCanvas: HTMLCanvasElement;
 
@@ -305,20 +315,21 @@ async function computeConsistency(
 
 // ─── Main Entry Point ───────────────────────────────────────────
 
-export async function analyzePhoto(
-  file: File | Blob,
+/**
+ * Analyze a canvas that already contains the image.
+ * Shared by both photo upload and live capture paths.
+ */
+export async function analyzeCanvas(
+  canvas: HTMLCanvasElement,
   poseType: string,
   options?: PhotoScanOptions
 ): Promise<PhotoScanResult> {
-  const mirrored = options?.mirrored ?? false;
+  const scanType = options?.scanType ?? "GALLERY";
   const warnings: string[] = [];
-
-  // 1. Decode + canvas
-  const canvas = await imageToCanvas(file, mirrored);
   const w = canvas.width;
   const h = canvas.height;
 
-  // 2. Init + detect
+  // 1. Init + detect
   await initPoseForImage();
   const poseResult: ImagePoseResult | null = detectPoseOnImage(canvas);
 
@@ -328,26 +339,26 @@ export async function analyzePhoto(
 
   const { landmarks, worldLandmarks, segmentationMask, maskWidth, maskHeight } = poseResult;
 
-  // 3. Body visibility
+  // 2. Body visibility
   const bodyVisibility = getBodyVisibility(landmarks);
   if (bodyVisibility === "none" || bodyVisibility === "partial") {
     warnings.push("Full body not visible — show your entire body for best results");
   }
 
-  // 4. Alignment
+  // 3. Alignment
   const template = getTemplate(poseType);
   const alignmentScore = template ? computeAlignment(landmarks, template, w, h) : 0;
 
-  // 5. Measurements
+  // 4. Measurements
   const measurements = computeMeasurements(landmarks, w, h, worldLandmarks);
   if (!measurements) {
     throw new Error("Could not compute body measurements. Ensure shoulders are visible.");
   }
 
-  // 6. Symmetry
+  // 5. Symmetry
   const symmetryData = computeSymmetry(worldLandmarks);
 
-  // 7. Brightness
+  // 6. Brightness
   const avgBrightness = measureBrightnessFromCanvas(canvas);
   if (avgBrightness < 40) {
     warnings.push("Photo is too dark — use better lighting for accurate analysis");
@@ -355,11 +366,11 @@ export async function analyzePhoto(
     warnings.push("Photo is overexposed — reduce brightness for better results");
   }
 
-  // 8. Tilt angles
-  computeTiltDeg(landmarks, LM.LEFT_SHOULDER, LM.RIGHT_SHOULDER, w, h);
+  // 7. Tilt angles
+  const shoulderTiltDeg = computeTiltDeg(landmarks, LM.LEFT_SHOULDER, LM.RIGHT_SHOULDER, w, h);
   const hipTiltDeg = computeTiltDeg(landmarks, LM.LEFT_HIP, LM.RIGHT_HIP, w, h);
 
-  // 9. Segmentation mask processing
+  // 8. Segmentation mask processing
   let binaryMask: Uint8Array | null = null;
   let segQuality = 0;
   let sliceIndices: SliceIndices | null = null;
@@ -369,7 +380,7 @@ export async function analyzePhoto(
     binaryMask = binarizeMask(maskData);
     segQuality = maskQualityScore(maskData);
 
-    // 10. Slice indices (only if full body visible)
+    // 9. Slice indices (only if full body visible)
     if (bodyVisibility === "full") {
       sliceIndices = computeBodySliceIndices(
         binaryMask,
@@ -387,7 +398,7 @@ export async function analyzePhoto(
     warnings.push("Segmentation not available — body shape analysis limited");
   }
 
-  // 11. Confidence
+  // 10. Confidence
   const requiredLandmarks = template?.requiredLandmarks ?? [
     LM.NOSE, LM.LEFT_SHOULDER, LM.RIGHT_SHOULDER,
     LM.LEFT_HIP, LM.RIGHT_HIP, LM.LEFT_KNEE, LM.RIGHT_KNEE,
@@ -404,10 +415,10 @@ export async function analyzePhoto(
       segQuality
     );
 
-  // 12. Stance width
+  // 11. Stance width
   const stanceWidthPx = computeStanceWidthPx(landmarks, w, h);
 
-  // 13. Consistency
+  // 12. Consistency (against any previous scan of same pose)
   const { score: consistencyScore, passes: consistencyPasses, details: consistencyDetails } =
     await computeConsistency(poseType, measurements.bodyHeightPx, stanceWidthPx, hipTiltDeg);
 
@@ -418,6 +429,40 @@ export async function analyzePhoto(
     if (!consistencyDetails.hipTiltMatch) tips.push("hip alignment");
     if (tips.length > 0) {
       warnings.push(`Inconsistent with previous scan: adjust ${tips.join(", ")}`);
+    }
+  }
+
+  // 13. Check-in gates (only when saving as CHECKIN)
+  let checkinGates: CheckinGateResult | null = null;
+
+  if (scanType === "CHECKIN") {
+    const prevCheckin = await getLastCheckin(poseType);
+    checkinGates = runCheckinGates(
+      landmarks, w, h, poseType,
+      measurements.bodyHeightPx, stanceWidthPx, hipTiltDeg,
+      prevCheckin
+    );
+
+    // Add gate-specific warnings
+    if (!checkinGates.gateA.passed) {
+      warnings.push(`Missing joints: ${checkinGates.gateA.missingJoints.join(", ")}`);
+    }
+    if (!checkinGates.gateB.passed) {
+      warnings.push(checkinGates.gateB.reason);
+    }
+    if (!checkinGates.gateC.passed) {
+      const tips: string[] = [];
+      if (!checkinGates.gateC.details.scaleMatch) tips.push("distance from camera");
+      if (!checkinGates.gateC.details.stanceMatch) tips.push("foot placement");
+      if (!checkinGates.gateC.details.hipTiltMatch) tips.push("hip alignment");
+      if (tips.length > 0) {
+        warnings.push(`Check-in inconsistent: adjust ${tips.join(", ")}`);
+      }
+    }
+    if (checkinGates.gateD.sameDayBlock) {
+      warnings.push("Already checked in today — save as Gallery or wait until tomorrow");
+    } else if (checkinGates.gateD.warning && checkinGates.gateD.daysSinceLastCheckin !== null) {
+      warnings.push(`Only ${checkinGates.gateD.daysSinceLastCheckin}d since last check-in — wait 7 days for best comparison`);
     }
   }
 
@@ -439,6 +484,10 @@ export async function analyzePhoto(
     consistencyPasses,
     consistencyDetails,
     avgBrightness,
+    stanceWidthPx,
+    hipTiltDeg,
+    shoulderTiltDeg,
+    checkinGates,
     normalizedCanvas: canvas,
     binaryMask,
     maskWidth,
@@ -446,4 +495,17 @@ export async function analyzePhoto(
     sliceYPositions,
     warnings,
   };
+}
+
+/**
+ * Analyze a photo file — decodes to canvas then delegates to analyzeCanvas.
+ */
+export async function analyzePhoto(
+  file: File | Blob,
+  poseType: string,
+  options?: PhotoScanOptions
+): Promise<PhotoScanResult> {
+  const mirrored = options?.mirrored ?? false;
+  const canvas = await imageToCanvas(file, mirrored);
+  return analyzeCanvas(canvas, poseType, options);
 }

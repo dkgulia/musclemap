@@ -4,6 +4,7 @@
  */
 
 import type { ScanRecord } from "@/modules/scan/models/types";
+import { getConfidenceLabel } from "@/modules/scan/models/types";
 import type { MeasurementEntry } from "@/modules/measurements/measurementStore";
 
 export async function generateProgressReport(
@@ -19,6 +20,8 @@ export async function generateProgressReport(
         timestamp: s.timestamp,
         poseId: s.poseId,
         symmetryScore: s.symmetryScore,
+        scanType: s.scanType ?? "GALLERY",
+        confidenceLabel: getConfidenceLabel(s.confidenceScore ?? 0),
       })),
       measurements: measurements.slice(0, 30).map((m) => ({
         timestamp: m.timestamp,

@@ -1,13 +1,7 @@
 "use client";
 
 import type { ScanRecord } from "@/modules/scan/models/types";
-
-const POSE_NAMES: Record<string, string> = {
-  "front-biceps": "Front Biceps",
-  "back-lats": "Back Lats",
-  "side-glute": "Side Glute",
-  "back-glute": "Back Glute",
-};
+import { POSE_NAMES } from "@/modules/scan/models/poseNames";
 
 interface Props {
   poseId: string;

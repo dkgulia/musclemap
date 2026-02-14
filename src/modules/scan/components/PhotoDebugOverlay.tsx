@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import type { SliceIndices } from "../models/types";
 
 interface Props {
   binaryMask: Uint8Array | null;
@@ -14,6 +15,7 @@ interface Props {
   } | null;
   canvasWidth: number;
   canvasHeight: number;
+  sliceIndices?: SliceIndices | null;
 }
 
 const SLICE_COLORS = [
@@ -32,6 +34,7 @@ export default function PhotoDebugOverlay({
   sliceYPositions,
   canvasWidth,
   canvasHeight,
+  sliceIndices,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -92,6 +95,16 @@ export default function PhotoDebugOverlay({
         sliceYPositions.calfY,
       ];
 
+      // Width index values for each slice
+      const widthValues = sliceIndices
+        ? [
+            sliceIndices.hipBandWidthIndex,
+            sliceIndices.upperThighWidthIndex,
+            sliceIndices.midThighWidthIndex,
+            sliceIndices.calfWidthIndex,
+          ]
+        : null;
+
       yPositions.forEach((y, i) => {
         ctx.strokeStyle = SLICE_COLORS[i];
         ctx.lineWidth = 2;
@@ -102,13 +115,16 @@ export default function PhotoDebugOverlay({
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // Label
+        // Label + width percentage
         ctx.fillStyle = SLICE_COLORS[i];
         ctx.font = "11px system-ui, sans-serif";
-        ctx.fillText(SLICE_LABELS[i], 6, y - 4);
+        const label = widthValues
+          ? `${SLICE_LABELS[i]} ${(widthValues[i] * 100).toFixed(1)}%`
+          : SLICE_LABELS[i];
+        ctx.fillText(label, 6, y - 4);
       });
     }
-  }, [binaryMask, maskWidth, maskHeight, sliceYPositions, canvasWidth, canvasHeight]);
+  }, [binaryMask, maskWidth, maskHeight, sliceYPositions, canvasWidth, canvasHeight, sliceIndices]);
 
   return (
     <canvas

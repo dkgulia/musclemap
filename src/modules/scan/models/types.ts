@@ -80,6 +80,10 @@ export interface ScanRecord {
   segmentationQuality?: number;
   consistencyScore?: number;
   photoBlobKey?: number; // key for Blob in "photoBlobs" store
+  // Check-in system fields
+  scanType?: ScanType;
+  avgBrightness?: number; // stored luma for historical consistency
+  stanceWidthPx?: number; // raw stance width for consistency checks
 }
 
 export interface Measurements {
@@ -175,6 +179,33 @@ export interface ConsistencyDetails {
   stanceMatch: boolean; // stanceWidth within ±8%
   hipTiltMatch: boolean; // within ±6°
   brightnessMatch: boolean; // within ±25 luma
+}
+
+// ─── Check-in System types ──────────────────────────────────────
+
+/** Scan intent classification */
+export type ScanType = "CHECKIN" | "GALLERY";
+
+/** Confidence label derived from score */
+export type ConfidenceLabel = "High" | "Med" | "Low";
+
+export function getConfidenceLabel(score: number): ConfidenceLabel {
+  if (score >= 75) return "High";
+  if (score >= 50) return "Med";
+  return "Low";
+}
+
+/** Result of running all 4 check-in validation gates */
+export interface CheckinGateResult {
+  gateA: { passed: boolean; missingJoints: string[] };
+  gateB: { passed: boolean; reason: string };
+  gateC: { passed: boolean; details: ConsistencyDetails; score: number };
+  gateD: {
+    warning: boolean;
+    sameDayBlock: boolean;
+    daysSinceLastCheckin: number | null;
+  };
+  allPassed: boolean;
 }
 
 /** Skeleton connections for drawing */

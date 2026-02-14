@@ -5,7 +5,8 @@ interface ScanData {
   timestamp: number;
   poseId: string;
   symmetryScore: number;
-  photoCount?: number;
+  scanType?: string;
+  confidenceLabel?: string;
 }
 
 interface MeasurementData {
@@ -46,8 +47,10 @@ export async function POST(request: Request) {
     .slice(-10)
     .map((s) => {
       const date = new Date(s.timestamp).toLocaleDateString();
+      const type = s.scanType === "CHECKIN" ? " [CHECKIN]" : "";
+      const conf = s.confidenceLabel ? ` confidence=${s.confidenceLabel}` : "";
       const sym = s.symmetryScore > 0 ? `, Symmetry=${s.symmetryScore}%` : "";
-      return `${date} ${s.poseId}${sym}`;
+      return `${date} ${s.poseId}${type}${conf}${sym}`;
     })
     .join("\n");
 
@@ -87,6 +90,8 @@ Rules:
 - If tape measurements show trends, analyze them (growing arms, shrinking waist, etc.)
 - If NO tape measurements exist, strongly encourage the user to start logging them ("Grab a tape measure and log your arms, chest, waist — that's where the real data is")
 - Comment on photo consistency and tracking habit (${totalPhotos} photos across ${poseTypes} pose type(s))
+- Photos marked [CHECKIN] passed strict validation gates and are the most reliable for tracking
+- When data quality is "Low", note that measurements may be less accurate
 - Symmetry scores are from pose analysis — only mention if notably imbalanced (<75%)
 - Give 2-3 specific actionable training or nutrition tips
 - Do NOT reference V-Taper, Shoulder Index, or Hip Index — these are not shown to the user
