@@ -57,11 +57,19 @@ export default function RecentScansList({ scans, onDelete }: Props) {
             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2 pt-6">
               <p className="text-[10px] text-white/90 font-medium">{formatDate(scan.timestamp)}</p>
             </div>
-            {scan.scanType === "CHECKIN" && (
+            {scan.scanCategory === "CHECKIN_FULL" ? (
+              <div className="absolute top-1 left-1 bg-emerald-500/80 backdrop-blur-sm rounded px-1.5 py-0.5">
+                <span className="text-[8px] font-semibold text-white">FULL</span>
+              </div>
+            ) : scan.scanCategory === "CHECKIN_SELFIE" ? (
+              <div className="absolute top-1 left-1 bg-blue-500/80 backdrop-blur-sm rounded px-1.5 py-0.5">
+                <span className="text-[8px] font-semibold text-white">SELFIE</span>
+              </div>
+            ) : scan.scanType === "CHECKIN" ? (
               <div className="absolute top-1 left-1 bg-emerald-500/80 backdrop-blur-sm rounded px-1.5 py-0.5">
                 <span className="text-[8px] font-semibold text-white">CHECK-IN</span>
               </div>
-            )}
+            ) : null}
             <button
               onClick={(e) => handleDelete(e, scan.id)}
               className="absolute top-1 right-1 p-1 rounded-md bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"

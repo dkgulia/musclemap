@@ -22,6 +22,7 @@ export async function generateProgressReport(
         symmetryScore: s.symmetryScore,
         scanType: s.scanType ?? "GALLERY",
         confidenceLabel: getConfidenceLabel(s.confidenceScore ?? 0),
+        scanCategory: s.scanCategory ?? "GALLERY",
       })),
       measurements: measurements.slice(0, 30).map((m) => ({
         timestamp: m.timestamp,

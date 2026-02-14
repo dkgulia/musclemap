@@ -84,6 +84,14 @@ export interface ScanRecord {
   scanType?: ScanType;
   avgBrightness?: number; // stored luma for historical consistency
   stanceWidthPx?: number; // raw stance width for consistency checks
+  // V2 classification fields
+  scanCategory?: ScanCategory;
+  poseDirection?: PoseDirection;
+  trackedRegions?: string[];
+  qualityScore?: number;
+  lightingScore?: number;
+  framingScore?: number;
+  poseMatchScore?: number;
 }
 
 export interface Measurements {
@@ -206,6 +214,54 @@ export interface CheckinGateResult {
     daysSinceLastCheckin: number | null;
   };
   allPassed: boolean;
+}
+
+// ─── V2 Classification types ─────────────────────────────────────
+
+/** Three-tier scan classification */
+export type ScanCategory = "CHECKIN_FULL" | "CHECKIN_SELFIE" | "GALLERY";
+
+/** Detected pose direction */
+export type PoseDirection = "FRONT" | "BACK" | "UNKNOWN";
+
+/** Scores from photo analysis */
+export interface AnalysisScores {
+  quality: number;   // 0-100 composite
+  lighting: number;  // 0-100
+  framing: number;   // 0-100
+  poseMatch: number; // 0-100
+}
+
+/** Result from photoClassifierService */
+export interface ClassificationResult {
+  category: ScanCategory;
+  poseDirection: PoseDirection;
+  trackedRegions: string[];
+  tips: string[];       // max 2, human-friendly
+  scores: AnalysisScores;
+}
+
+/** Full analysis result from photoAnalyzeService */
+export interface PhotoAnalysis {
+  landmarks: Landmark[];
+  worldLandmarks: WorldLandmark[];
+  canvas: HTMLCanvasElement;
+  classification: ClassificationResult;
+  measurements: Measurements | null;
+  symmetryData: SymmetryData | null;
+  avgBrightness: number;
+}
+
+/** Coach report confidence */
+export type CoachConfidence = "High" | "Medium" | "Low";
+
+export function getCoachConfidence(
+  qualityScore: number,
+  timeGapDays: number | null
+): CoachConfidence {
+  if (qualityScore >= 75 && (timeGapDays === null || timeGapDays >= 7)) return "High";
+  if (qualityScore >= 60) return "Medium";
+  return "Low";
 }
 
 /** Skeleton connections for drawing */

@@ -10,10 +10,16 @@ function formatDate(ts: number): string {
   return `${d.toLocaleString("default", { month: "short" })} ${d.getDate()}`;
 }
 
+function categoryLabel(scan: ScanRecord): string {
+  if (scan.scanCategory === "CHECKIN_FULL") return " [Full]";
+  if (scan.scanCategory === "CHECKIN_SELFIE") return " [Selfie]";
+  if (scan.scanType === "CHECKIN") return " [Check-in]";
+  return "";
+}
+
 function scanLabel(scan: ScanRecord): string {
   const pose = POSE_NAMES[scan.poseId] || scan.poseId;
-  const badge = scan.scanType === "CHECKIN" ? " [Check-in]" : "";
-  return `${pose} — ${formatDate(scan.timestamp)}${badge}`;
+  return `${pose} — ${formatDate(scan.timestamp)}${categoryLabel(scan)}`;
 }
 
 function PhotoSlider({ scanA, scanB }: { scanA: ScanRecord; scanB: ScanRecord }) {
@@ -199,10 +205,15 @@ export default function ComparePage() {
     const data = await listScans(undefined, 100);
     setScans(data);
 
-    // Auto-select: prefer CHECKIN scans with photos, fallback to any with photos
+    // Auto-select: prefer same category+poseType pairs, then CHECKIN, then any with photos
+    const fullCheckins = data.filter((s) => s.scanCategory === "CHECKIN_FULL" && s.photoDataUrl);
+    const selfieCheckins = data.filter((s) => s.scanCategory === "CHECKIN_SELFIE" && s.photoDataUrl);
     const checkins = data.filter((s) => s.scanType === "CHECKIN" && s.photoDataUrl);
     const withPhotos = data.filter((s) => s.photoDataUrl);
-    const preferred = checkins.length >= 2 ? checkins : withPhotos;
+    const preferred = fullCheckins.length >= 2 ? fullCheckins
+      : selfieCheckins.length >= 2 ? selfieCheckins
+      : checkins.length >= 2 ? checkins
+      : withPhotos;
     if (preferred.length >= 2) {
       setScanBId(preferred[0].id ?? null);
       setScanAId(preferred[1].id ?? null);
@@ -296,23 +307,23 @@ export default function ComparePage() {
       {/* Photo comparison slider */}
       {scanA && scanB && <PhotoSlider scanA={scanA} scanB={scanB} />}
 
-      {/* Region delta card — gated by quality, consistency, and time */}
+      {/* Region delta card — gated by category match, quality, and 7-day time gate */}
       {scanA && scanB && scanA.hipBandWidthIndex != null && scanB.hipBandWidthIndex != null && (() => {
-        const aConf = scanA.confidenceScore ?? 0;
-        const bConf = scanB.confidenceScore ?? 0;
-        const aCons = scanA.consistencyScore ?? 100;
-        const bCons = scanB.consistencyScore ?? 100;
+        const aQuality = scanA.qualityScore ?? scanA.confidenceScore ?? 0;
+        const bQuality = scanB.qualityScore ?? scanB.confidenceScore ?? 0;
         const timeGapDays = Math.abs(scanB.timestamp - scanA.timestamp) / 86400000;
-        const comparable = Math.min(aCons, bCons);
-        const quality = Math.min(aConf, bConf);
-        const showDeltas = comparable >= 70 && quality >= 65 && timeGapDays >= 7;
+        const quality = Math.min(aQuality, bQuality);
+        const sameCategory = (scanA.scanCategory ?? "GALLERY") === (scanB.scanCategory ?? "GALLERY")
+          && (scanA.scanCategory ?? "GALLERY") !== "GALLERY";
+        const samePose = scanA.poseId === scanB.poseId;
+        const showDeltas = sameCategory && samePose && quality >= 65 && timeGapDays >= 7;
 
         if (showDeltas) {
           return <RegionDeltaCard scanA={scanA} scanB={scanB} />;
         }
-        // Show explanation why deltas are hidden
         const reasons: string[] = [];
-        if (comparable < 70) reasons.push("poses not consistent enough");
+        if (!sameCategory) reasons.push("different scan categories");
+        if (!samePose) reasons.push("different poses");
         if (quality < 65) reasons.push("photo quality too low");
         if (timeGapDays < 7) reasons.push(`only ${Math.floor(timeGapDays)}d apart (need 7d+)`);
         return (

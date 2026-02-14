@@ -31,6 +31,14 @@ function normalizeScanRecord(raw: Record<string, unknown>): ScanRecord {
     scanType: rec.scanType ?? "GALLERY",
     avgBrightness: rec.avgBrightness,
     stanceWidthPx: rec.stanceWidthPx,
+    // V2 classification fields
+    scanCategory: rec.scanCategory ?? "GALLERY",
+    poseDirection: rec.poseDirection,
+    trackedRegions: rec.trackedRegions,
+    qualityScore: rec.qualityScore,
+    lightingScore: rec.lightingScore,
+    framingScore: rec.framingScore,
+    poseMatchScore: rec.poseMatchScore,
   };
 }
 
@@ -117,6 +125,27 @@ export async function getLastCheckin(
 ): Promise<ScanRecord | null> {
   const checkins = await listCheckinScans(poseId, 1);
   return checkins[0] ?? null;
+}
+
+// ─── V2 Category Queries ────────────────────────────────────────
+
+/** List scans by V2 category for a given poseId, newest first */
+export async function listByCategory(
+  category: string,
+  poseId?: string,
+  limit: number = 50
+): Promise<ScanRecord[]> {
+  const all = await listScans(poseId, limit * 3);
+  return all.filter((s) => s.scanCategory === category).slice(0, limit);
+}
+
+/** Get the most recent scan of a given category + poseId */
+export async function getLastByCategory(
+  category: string,
+  poseId: string
+): Promise<ScanRecord | null> {
+  const results = await listByCategory(category, poseId, 1);
+  return results[0] ?? null;
 }
 
 // ─── Photo Blob Storage ─────────────────────────────────────────

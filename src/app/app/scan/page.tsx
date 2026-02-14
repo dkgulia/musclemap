@@ -23,8 +23,10 @@ import { generateMockLandmarks } from "@/modules/scan/services/mockLandmarks";
 import { addScan, listScans, getLastCheckin } from "@/modules/scan/storage/scanStore";
 import { isCheckinTemplate } from "@/modules/scan/models/poseTemplates";
 import { runCheckinGates } from "@/modules/scan/services/checkinGatingService";
+import { classifyPhoto } from "@/modules/scan/services/photoClassifierService";
+import { measureBrightnessFromCanvas } from "@/modules/scan/services/brightnessService";
 import { LM } from "@/modules/scan/models/types";
-import type { Landmark, WorldLandmark, ScoreBreakdown, SymmetryData, ScanRecord, ScanType } from "@/modules/scan/models/types";
+import type { Landmark, WorldLandmark, ScoreBreakdown, SymmetryData, ScanRecord, ScanType, ScanCategory } from "@/modules/scan/models/types";
 import ScanInsight from "@/modules/trends/components/ScanInsight";
 import PhotoUploadPanel from "@/modules/scan/components/PhotoUploadPanel";
 
@@ -322,14 +324,49 @@ function ScanPageInner() {
       }
     }
 
-    // Check-in gating for check-in templates
-    let scanType: ScanType = "GALLERY";
+    // V2 classification: classify the captured frame
     const lm = latestLandmarksRef.current;
     const vw = mockMode ? 720 : (video?.videoWidth ?? 720);
     const vh = mockMode ? 960 : (video?.videoHeight ?? 960);
 
+    let scanCategory: ScanCategory = "GALLERY";
+    let scanType: ScanType = "GALLERY";
+    let avgBrightness = 128;
+    let qualityScore = 0;
+    let lightingScore = 0;
+    let framingScore = 0;
+    let poseMatchScore = 0;
+    let poseDirection: "FRONT" | "BACK" | "UNKNOWN" = "UNKNOWN";
+    let trackedRegions: string[] = [];
+
+    if (lm) {
+      // Measure brightness from the captured frame canvas
+      const captureCanvas = document.createElement("canvas");
+      captureCanvas.width = vw;
+      captureCanvas.height = vh;
+      const cCtx = captureCanvas.getContext("2d");
+      if (cCtx && video && !mockMode) {
+        cCtx.translate(captureCanvas.width, 0);
+        cCtx.scale(-1, 1);
+        cCtx.drawImage(video, 0, 0);
+      }
+      avgBrightness = cCtx ? measureBrightnessFromCanvas(captureCanvas) : 128;
+
+      const classification = classifyPhoto(lm, vw, vh, avgBrightness, smoothedAlignment.current);
+      scanCategory = classification.category;
+      poseDirection = classification.poseDirection;
+      trackedRegions = classification.trackedRegions;
+      qualityScore = classification.scores.quality;
+      lightingScore = classification.scores.lighting;
+      framingScore = classification.scores.framing;
+      poseMatchScore = classification.scores.poseMatch;
+
+      // Map V2 category to V1 scanType for backward compat
+      scanType = scanCategory === "GALLERY" ? "GALLERY" : "CHECKIN";
+    }
+
+    // V1 check-in gating for check-in templates (additional gate check)
     if (isCheckinTemplate(selectedTemplateId) && lm) {
-      // Compute stance width from landmarks
       const lAnkle = lm[LM.LEFT_ANKLE];
       const rAnkle = lm[LM.RIGHT_ANKLE];
       let stanceWidthPx = 0;
@@ -339,7 +376,6 @@ function ScanPageInner() {
         stanceWidthPx = Math.sqrt(adx * adx + ady * ady);
       }
 
-      // Compute hip tilt
       const lHip = lm[LM.LEFT_HIP];
       const rHip = lm[LM.RIGHT_HIP];
       let hipTiltDeg = 0;
@@ -356,12 +392,9 @@ function ScanPageInner() {
         prevCheckin
       );
 
-      if (gates.allPassed) {
-        scanType = "CHECKIN";
-        setGateMessage(null);
-      } else {
+      if (!gates.allPassed) {
         scanType = "GALLERY";
-        // Build explanation
+        scanCategory = "GALLERY";
         const reasons: string[] = [];
         if (!gates.gateA.passed) reasons.push(`missing: ${gates.gateA.missingJoints.join(", ")}`);
         if (!gates.gateB.passed) reasons.push(gates.gateB.reason);
@@ -369,6 +402,8 @@ function ScanPageInner() {
         if (gates.gateD.sameDayBlock) reasons.push("already checked in today");
         setGateMessage(`Saved as Gallery — ${reasons.join("; ")}`);
         setTimeout(() => setGateMessage(null), 6000);
+      } else {
+        setGateMessage(null);
       }
     }
 
@@ -389,6 +424,15 @@ function ScanPageInner() {
       symmetryScore: Math.round(symmetryData?.overallScore ?? 0),
       photoDataUrl,
       scanType,
+      avgBrightness,
+      // V2 classification fields
+      scanCategory,
+      poseDirection,
+      trackedRegions,
+      qualityScore: Math.round(qualityScore),
+      lightingScore: Math.round(lightingScore),
+      framingScore: Math.round(framingScore),
+      poseMatchScore: Math.round(poseMatchScore),
     });
 
     // Store captured values for ScanInsight display

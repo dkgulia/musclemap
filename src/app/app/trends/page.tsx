@@ -41,8 +41,8 @@ export default function TrendsPage() {
         {/* Growth insights summary — based on check-in scans only */}
         {!loading && (
           <>
-            <GrowthInsights scans={scans.filter(s => s.scanType === "CHECKIN")} poseId={selectedTemplateId} />
-            {scans.some(s => s.scanType === "CHECKIN") && (
+            <GrowthInsights scans={scans.filter(s => s.scanCategory !== "GALLERY" || s.scanType === "CHECKIN")} poseId={selectedTemplateId} />
+            {scans.some(s => s.scanCategory !== "GALLERY" || s.scanType === "CHECKIN") && (
               <p className="text-[10px] text-muted -mt-2 px-1">Based on check-in scans only</p>
             )}
           </>
